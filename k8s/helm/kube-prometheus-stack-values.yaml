@@ -1,11 +1,11 @@
 grafana:
-  adminPassword: change-me
+  adminPassword: kagura12
 
   persistence:
     enabled: true
     accessModes:
       - ReadWriteOnce
-    size: 10Gi
+    size: 2Gi
     storageClassName: ebs-csi
 
   service:
@@ -21,7 +21,7 @@ grafana:
 
 prometheus:
   prometheusSpec:
-    retention: 10d
+    retention: 2d
     serviceMonitorSelectorNilUsesHelmValues: false
     storageSpec:
       volumeClaimTemplate:
@@ -31,15 +31,15 @@ prometheus:
           storageClassName: ebs-csi
           resources:
             requests:
-              storage: 20Gi
+              storage: 2Gi
 
     resources:
       requests:
-        cpu: 200m
-        memory: 768Mi
+        cpu: 100m
+        memory: 256Mi
       limits:
-        cpu: 500m
-        memory: 1Gi
+        cpu: 200m
+        memory: 512Mi
 
 alertmanager:
   enabled: false
