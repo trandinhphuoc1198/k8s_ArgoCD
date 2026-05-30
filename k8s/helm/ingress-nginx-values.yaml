@@ -1,0 +1,24 @@
+controller:
+  replicaCount: 2
+
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30080
+      https: 30443
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+defaultBackend:
+  enabled: true

@@ -1,4 +1,63 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+APP_NAMESPACE="${APP_NAMESPACE:-fastapi}"
+MONITORING_NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
+INGRESS_NAMESPACE="${INGRESS_NAMESPACE:-ingress-nginx}"
+STORAGE_CLASS="${STORAGE_CLASS:-ebs-csi}"
+APP_VALUES_FILE="${APP_VALUES_FILE:-}"
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+require_command helm
+require_command kubectl
+
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >/dev/null 2>&1 || true
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1 || true
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo update
+
+helm upgrade --install metrics-server metrics-server/metrics-server \
+  --namespace kube-system \
+  --values "$ROOT_DIR/k8s/helm/metrics-server-values.yaml"
+
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace "$INGRESS_NAMESPACE" \
+  --create-namespace \
+  --values "$ROOT_DIR/k8s/helm/ingress-nginx-values.yaml"
+
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace "$MONITORING_NAMESPACE" \
+  --create-namespace \
+  --values "$ROOT_DIR/k8s/helm/kube-prometheus-stack-values.yaml" \
+  --set grafana.persistence.storageClassName="$STORAGE_CLASS" \
+  --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName="$STORAGE_CLASS"
+
+app_args=(
+  upgrade --install fastapi-app "$ROOT_DIR/charts/fastapi-app"
+  --namespace "$APP_NAMESPACE"
+  --create-namespace
+)
+
+if [[ -n "$APP_VALUES_FILE" ]]; then
+  app_args+=(--values "$APP_VALUES_FILE")
+fi
+
+helm "${app_args[@]}"
+
+echo "Deployment finished."
+echo "Verify NodePorts: kubectl get svc -n ${INGRESS_NAMESPACE}"
+echo "Verify app and HPA: kubectl get deploy,svc,ing,hpa -n ${APP_NAMESPACE}"
+echo "Verify metrics: kubectl top pods -n ${APP_NAMESPACE}"
+echo "Verify monitoring: kubectl get pods,pvc -n ${MONITORING_NAMESPACE}"#!/bin/bash
 # FastAPI K8s Deployment Script
 # Installs prerequisites and deploys the FastAPI application
 
@@ -14,10 +73,16 @@ if ! command -v kubectl &> /dev/null; then
     exit 1
 fi
 
+# Check helm is available
+if ! command -v helm &> /dev/null; then
+    echo "ERROR: helm is not installed or not in PATH"
+    exit 1
+fi
+
 echo ""
 echo "Step 1: Installing Metrics Server..."
 echo "This is required for HPA (Horizontal Pod Autoscaler) to work"
-kubectl apply -f k8s/prerequisites/metrics-server.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
 echo ""
 echo "Step 2: Waiting for Metrics Server to be ready..."
@@ -31,13 +96,16 @@ kubectl wait --for=condition=ready pod \
 echo ""
 echo "Step 3: Installing Nginx Ingress Controller..."
 echo "This is required for Ingress routing to work"
-kubectl apply -f k8s/prerequisites/nginx-ingress-controller.yaml
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx --force-update
+helm repo update ingress-nginx
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --values k8s/helm/ingress-nginx-values.yaml
 
 echo ""
 echo "Step 4: Waiting for Nginx Ingress Controller to be ready..."
-sleep 10
-kubectl wait --for=condition=ready pod \
-  -l app.kubernetes.io/name=ingress-nginx \
+kubectl rollout status deployment/ingress-nginx-controller \
   -n ingress-nginx \
   --timeout=120s \
   2>/dev/null || echo "⚠️  Nginx Ingress still starting"
@@ -67,7 +135,7 @@ echo "📊 Metrics Server:"
 kubectl get deployment -n kube-system metrics-server
 echo ""
 echo "🔀 Ingress Controller:"
-kubectl get daemonset -n ingress-nginx ingress-nginx-controller
+kubectl get deployment -n ingress-nginx ingress-nginx-controller
 echo ""
 echo "🚀 FastAPI Application:"
 kubectl get deployment -n fastapi fastapi-app

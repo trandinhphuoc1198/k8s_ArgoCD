@@ -1,225 +1,76 @@
-# FastAPI Kubernetes Deployment
+# k8s_ArgoCD
 
-Deploys a FastAPI application on Kubernetes with Nginx Ingress, Horizontal Pod Autoscaling (HPA), and automated metrics collection via Metrics Server.
+Helm-based deployment assets for an existing self-managed Kubernetes cluster on EC2.
 
----
-
-## Architecture
-
-```
-Internet
-   │
-   ▼
-AWS ELB (LoadBalancer)
-   │
-   ▼
-Nginx Ingress Controller (ingress-nginx namespace)
-   │
-   ▼
-Ingress Rule → fastapi-service (ClusterIP :80)
-   │
-   ▼
-FastAPI Pods (namespace: fastapi, containerPort: 8000)
-   │
-   ▼
-HPA ← Metrics Server (CPU utilization target: 50%)
-```
-
----
+This repository deploys:
+- `metrics-server` for HPA metrics
+- `ingress-nginx` as the in-cluster nginx load balancer, exposed with `NodePort`
+- `kube-prometheus-stack` for Prometheus and Grafana
+- A FastAPI application chart for `gintaku98/k8s_fastapi:6b1b515a4ba21d122e4f33e3381c866a48ba5098`
 
 ## Prerequisites
 
-| Tool      | Min Version | Purpose                      |
-|-----------|-------------|------------------------------|
-| `kubectl` | v1.24+      | Cluster management           |
-| `kustomize` | v5+       | Manifest management (bundled with kubectl) |
-| Kubernetes cluster | 1.24+ | EKS, GKE, kubeadm, etc. |
+- Existing Kubernetes cluster and `kubectl` context pointing at it
+- Helm 3
+- EBS CSI driver installed with a usable StorageClass
+- An ALB or other upstream load balancer that forwards to the `ingress-nginx` NodePorts
 
----
+## Layout
 
-## Repository Structure
+- `charts/fastapi-app`: application chart
+- `k8s/helm/metrics-server-values.yaml`: metrics-server values for self-managed nodes
+- `k8s/helm/ingress-nginx-values.yaml`: ingress-nginx values with `NodePort` exposure
+- `k8s/helm/kube-prometheus-stack-values.yaml`: monitoring stack values
+- `deploy.sh`: repeatable Helm install and upgrade flow
 
-```
-k8s_ArgoCD/
-├── deploy.sh                          # One-shot deployment script
-├── README.md
-└── k8s/
-    ├── base/                          # Application manifests (kustomize base)
-    │   ├── kustomization.yaml         # Kustomize entry point
-    │   ├── namespace.yaml             # fastapi namespace
-    │   ├── deployment.yaml            # FastAPI Deployment (2 replicas)
-    │   ├── service.yaml               # ClusterIP Service (port 80 → 8000)
-    │   ├── ingress.yaml               # Nginx Ingress rule
-    │   └── hpa.yaml                   # HPA (min 2, max 5 pods, 50% CPU)
-    └── prerequisites/
-        ├── metrics-server.yaml        # Metrics Server + APIService
-        └── nginx-ingress-controller.yaml  # Nginx Ingress Controller (DaemonSet)
-```
+## FastAPI configuration
 
----
+The chart expects database settings through a Kubernetes Secret. By default, it creates one from chart values:
 
-## Quick Start
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+
+Update [charts/fastapi-app/values.yaml](c:/Users/PhuocTD6/Desktop/k8s_ArgoCD/charts/fastapi-app/values.yaml) or supply an override file before deploying. If you already manage secrets separately, set `database.existingSecret` and disable secret creation.
+
+## Deploy
+
+Run:
 
 ```bash
-# Make the script executable and run it
-chmod +x deploy.sh
 ./deploy.sh
 ```
 
-The script performs these steps in order:
-1. Installs Metrics Server (required for HPA)
-2. Waits for Metrics Server to become ready
-3. Installs Nginx Ingress Controller
-4. Waits for Nginx Ingress Controller to become ready
-5. Deploys the FastAPI application via Kustomize
-6. Verifies the deployment
+Optional environment variables:
 
----
+- `APP_NAMESPACE` defaults to `fastapi`
+- `MONITORING_NAMESPACE` defaults to `monitoring`
+- `INGRESS_NAMESPACE` defaults to `ingress-nginx`
+- `STORAGE_CLASS` defaults to `ebs-csi`
+- `APP_VALUES_FILE` points to an additional Helm values override file
 
-## Manual Deployment
-
-### Step 1 — Install prerequisites
+## Verify
 
 ```bash
-kubectl apply -f k8s/prerequisites/metrics-server.yaml
-kubectl apply -f k8s/prerequisites/nginx-ingress-controller.yaml
-```
-
-Wait for readiness:
-
-```bash
-kubectl wait --for=condition=ready pod \
-  -l k8s-app=metrics-server -n kube-system --timeout=120s
-
-kubectl wait --for=condition=ready pod \
-  -l app.kubernetes.io/name=ingress-nginx -n ingress-nginx --timeout=120s
-```
-
-### Step 2 — Deploy the application
-
-```bash
-kubectl apply -k k8s/base/
-```
-
-### Step 3 — Verify
-
-```bash
-kubectl get all -n fastapi
-kubectl get hpa -n fastapi
-kubectl get ingress -n fastapi
-```
-
----
-
-## Application Details
-
-| Property         | Value                                                                 |
-|------------------|-----------------------------------------------------------------------|
-| Image            | `gintaku98/k8s_fastapi:6b1b515a4ba21d122e4f33e3381c866a48ba5098`    |
-| Namespace        | `fastapi`                                                             |
-| Container port   | `8000`                                                                |
-| Service port     | `80` (ClusterIP)                                                      |
-| Health endpoint  | `/health`                                                             |
-| Ingress host     | `fast-api-k8s-1011545333.ap-northeast-1.elb.amazonaws.com`           |
-
-### Resource Limits (per pod)
-
-| Resource | Request | Limit  |
-|----------|---------|--------|
-| CPU      | 100m    | 200m   |
-| Memory   | 64Mi    | 128Mi  |
-
-### Horizontal Pod Autoscaler
-
-| Setting            | Value |
-|--------------------|-------|
-| Min replicas       | 2     |
-| Max replicas       | 5     |
-| CPU target         | 50%   |
-
----
-
-## Accessing the Application
-
-```bash
-# Get the LoadBalancer external IP/hostname
-kubectl get svc -n ingress-nginx ingress-nginx-controller
-
-# Test the API
-curl http://fast-api-k8s-1011545333.ap-northeast-1.elb.amazonaws.com/
-
-# Check health endpoint
-curl http://fast-api-k8s-1011545333.ap-northeast-1.elb.amazonaws.com/health
-```
-
----
-
-## Monitoring & Operations
-
-```bash
-# Watch pod status
-kubectl get pods -n fastapi -w
-
-# Watch HPA scaling activity
-kubectl get hpa -n fastapi --watch
-
-# Check CPU/memory usage (requires Metrics Server to be ready ~1-2 min after deploy)
+kubectl get pods -A
+kubectl get svc -n ingress-nginx
+kubectl get deploy,svc,ing,hpa -n fastapi
 kubectl top pods -n fastapi
-kubectl top nodes
-
-# View application logs
-kubectl logs -n fastapi -l app=fastapi --tail=100 -f
-
-# Describe the HPA for scaling events
-kubectl describe hpa fastapi-hpa -n fastapi
+kubectl get pvc -n monitoring
 ```
 
----
+Expected outcomes:
 
-## Cleanup
+- FastAPI starts at 2 replicas
+- `ingress-nginx-controller` is exposed via `NodePort`
+- HPA targets average CPU utilization at 50%
+- Prometheus and Grafana PVCs bind against the EBS-backed StorageClass
+- The FastAPI chart creates a `ServiceMonitor` so the monitoring stack can scrape the app once the operator is installed
 
-```bash
-# Remove the FastAPI application
-kubectl delete -k k8s/base/
+## Notes
 
-# Remove prerequisites
-kubectl delete -f k8s/prerequisites/nginx-ingress-controller.yaml
-kubectl delete -f k8s/prerequisites/metrics-server.yaml
-```
-
----
-
-## Troubleshooting
-
-### Pods not starting
-
-```bash
-kubectl describe pod -n fastapi -l app=fastapi
-kubectl logs -n fastapi -l app=fastapi --previous
-```
-
-### HPA showing `<unknown>` for CPU metrics
-
-Metrics Server may not be ready yet. Wait 1-2 minutes after deployment and check:
-
-```bash
-kubectl get apiservice v1beta1.metrics.k8s.io
-kubectl top nodes
-```
-
-### Ingress not routing traffic
-
-Verify the Nginx Ingress Controller is running and the Service has an external IP:
-
-```bash
-kubectl get pods -n ingress-nginx
-kubectl get svc -n ingress-nginx ingress-nginx-controller
-```
-
-### ImagePullBackOff
-
-Confirm the image tag is reachable from your cluster's nodes:
-
-```bash
-kubectl describe pod -n fastapi <pod-name>
-```
+- The FastAPI image port is assumed to be `8000`. Override `containerPort` if the image listens elsewhere.
+- Default probes use a TCP socket on the container port because the image health endpoints are not yet confirmed.
+- Grafana is exposed internally by default as a `ClusterIP` service. You can either use `kubectl port-forward` or add ingress settings in the monitoring values file.
