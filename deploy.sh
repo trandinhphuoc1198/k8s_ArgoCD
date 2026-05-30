@@ -23,11 +23,19 @@ require_command kubectl
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ >/dev/null 2>&1 || true
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1 || true
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver >/dev/null 2>&1 || true
 helm repo update
 
 helm upgrade --install metrics-server metrics-server/metrics-server \
   --namespace kube-system \
   --values "$ROOT_DIR/k8s/helm/metrics-server-values.yaml"
+
+helm upgrade --install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver \
+  --namespace kube-system \
+  --values "$ROOT_DIR/k8s/helm/ebs-csi-values.yaml"
+
+kubectl rollout status deployment/ebs-csi-controller -n kube-system --timeout=120s
+kubectl rollout status daemonset/ebs-csi-node -n kube-system --timeout=120s
 
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace "$INGRESS_NAMESPACE" \
@@ -57,77 +65,7 @@ echo "Deployment finished."
 echo "Verify NodePorts: kubectl get svc -n ${INGRESS_NAMESPACE}"
 echo "Verify app and HPA: kubectl get deploy,svc,ing,hpa -n ${APP_NAMESPACE}"
 echo "Verify metrics: kubectl top pods -n ${APP_NAMESPACE}"
-echo "Verify monitoring: kubectl get pods,pvc -n ${MONITORING_NAMESPACE}"#!/bin/bash
-# FastAPI K8s Deployment Script
-# Installs prerequisites and deploys the FastAPI application
-
-set -e
-
-echo "=================================================="
-echo "FastAPI K8s Deployment - Automated Setup"
-echo "=================================================="
-
-# Check kubectl is available
-if ! command -v kubectl &> /dev/null; then
-    echo "ERROR: kubectl is not installed or not in PATH"
-    exit 1
-fi
-
-# Check helm is available
-if ! command -v helm &> /dev/null; then
-    echo "ERROR: helm is not installed or not in PATH"
-    exit 1
-fi
-
-echo ""
-echo "Step 1: Installing Metrics Server..."
-echo "This is required for HPA (Horizontal Pod Autoscaler) to work"
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-
-echo ""
-echo "Step 2: Waiting for Metrics Server to be ready..."
-echo "This may take 30-60 seconds..."
-kubectl wait --for=condition=ready pod \
-  -l k8s-app=metrics-server \
-  -n kube-system \
-  --timeout=120s \
-  2>/dev/null || echo "⚠️  Metrics Server still starting (may take longer on slow clusters)"
-
-echo ""
-echo "Step 3: Installing Nginx Ingress Controller..."
-echo "This is required for Ingress routing to work"
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx --force-update
-helm repo update ingress-nginx
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx \
-  --create-namespace \
-  --values k8s/helm/ingress-nginx-values.yaml
-
-echo ""
-echo "Step 4: Waiting for Nginx Ingress Controller to be ready..."
-kubectl rollout status deployment/ingress-nginx-controller \
-  -n ingress-nginx \
-  --timeout=120s \
-  2>/dev/null || echo "⚠️  Nginx Ingress still starting"
-
-echo ""
-echo "Step 5: Deploying FastAPI Application..."
-kubectl apply -k k8s/base/
-
-echo ""
-echo "Step 6: Verifying Deployment..."
-echo ""
-echo "Waiting for FastAPI pods to be ready..."
-kubectl wait --for=condition=ready pod \
-  -l app=fastapi \
-  -n fastapi \
-  --timeout=120s \
-  2>/dev/null || echo "⚠️  Pods still starting"
-
-echo ""
-echo "=================================================="
-echo "✅ Deployment Complete!"
-echo "=================================================="
+echo "Verify monitoring: kubectl get pods,pvc -n ${MONITORING_NAMESPACE}"
 echo ""
 echo "Cluster Status:"
 echo ""

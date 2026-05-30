@@ -3,6 +3,7 @@
 Helm-based deployment assets for an existing self-managed Kubernetes cluster on EC2.
 
 This repository deploys:
+- `aws-ebs-csi-driver` to provision EBS-backed PersistentVolumes with a `gp3` StorageClass named `ebs-csi`
 - `metrics-server` for HPA metrics
 - `ingress-nginx` as the in-cluster nginx load balancer, exposed with `NodePort`
 - `kube-prometheus-stack` for Prometheus and Grafana
@@ -12,12 +13,13 @@ This repository deploys:
 
 - Existing Kubernetes cluster and `kubectl` context pointing at it
 - Helm 3
-- EBS CSI driver installed with a usable StorageClass
+- EC2 worker nodes whose IAM instance profile includes the `AmazonEBSCSIDriverPolicy` managed policy (required for the EBS CSI driver to create and attach volumes)
 - An ALB or other upstream load balancer that forwards to the `ingress-nginx` NodePorts
 
 ## Layout
 
 - `charts/fastapi-app`: application chart
+- `k8s/helm/ebs-csi-values.yaml`: EBS CSI driver values — creates `ebs-csi` StorageClass (gp3, encrypted)
 - `k8s/helm/metrics-server-values.yaml`: metrics-server values for self-managed nodes
 - `k8s/helm/ingress-nginx-values.yaml`: ingress-nginx values with `NodePort` exposure
 - `k8s/helm/kube-prometheus-stack-values.yaml`: monitoring stack values

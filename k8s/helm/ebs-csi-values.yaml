@@ -1,0 +1,25 @@
+storageClasses:
+  - name: ebs-csi
+    volumeBindingMode: WaitForFirstConsumer
+    reclaimPolicy: Delete
+    parameters:
+      type: gp3
+      encrypted: "true"
+
+controller:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+node:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
