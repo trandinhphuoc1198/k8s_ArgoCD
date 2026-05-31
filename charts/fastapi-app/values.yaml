@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: gintaku98/k8s_fastapi
-  tag: 6b1b515a4ba21d122e4f33e3381c866a48ba5098
+  tag: 95c2855b3c14a70bd2d5f1280d2b8414ae3e4c01
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -18,12 +18,18 @@ service:
 ingress:
   enabled: true
   className: nginx
-  annotations: {}
+  annotations: 
+    # FIX 1: Proper regex capture. This grabs whatever is AFTER /fastapi-app 
+    # and pastes it into the $2 variable in the rewrite-target.
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # FIX 2: Passes a header so FastAPI knows it's behind a subpath proxy
+    nginx.ingress.kubernetes.io/x-forwarded-prefix: "/fastapi-app"
   hosts:
     - host: ""
       paths:
-        - path: /
-          pathType: Prefix
+        # FIX 3: Regex path to capture the end of the URL (stored in $2)
+        - path: /fastapi-app(/|$)(.*)
+          pathType: ImplementationSpecific # Required for regex paths in NGINX
   tls: []
 
 resources:
@@ -77,4 +83,7 @@ serviceMonitor:
   additionalLabels:
     release: kube-prometheus-stack
 
-extraEnv: []
+# FIX 4: Explicitly pass ROOT_PATH to the FastAPI container
+extraEnv: 
+  - name: ROOT_PATH
+    value: "/fastapi-app"
