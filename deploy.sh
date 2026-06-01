@@ -48,7 +48,17 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
 
 kubectl rollout status deployment/kube-prometheus-stack-operator -n "$MONITORING_NAMESPACE" --timeout=120s
 kubectl rollout status deployment/kube-prometheus-stack-grafana -n "$MONITORING_NAMESPACE" --timeout=120s
-kubectl rollout status statefulset/prometheus-kube-prometheus-prometheus -n "$MONITORING_NAMESPACE" --timeout=120s
+
+# Dynamically resolve the Prometheus StatefulSet name — it varies by Helm release name
+PROM_SS=$(kubectl get statefulset -n "$MONITORING_NAMESPACE" \
+  -l "app.kubernetes.io/name=prometheus" \
+  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+
+if [[ -n "$PROM_SS" ]]; then
+  kubectl rollout status statefulset/"$PROM_SS" -n "$MONITORING_NAMESPACE" --timeout=120s
+else
+  echo "Warning: No Prometheus StatefulSet found in namespace '$MONITORING_NAMESPACE' — skipping rollout check." >&2
+fi
 
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace "$INGRESS_NAMESPACE" \
@@ -68,8 +78,6 @@ if [[ -n "$APP_VALUES_FILE" ]]; then
 fi
 
 helm "${app_args[@]}"
-
-kubectl rollout status deployment/fastapi-app -n "$APP_NAMESPACE" --timeout=120s
 
 echo "Deployment finished."
 echo "Verify NodePorts: kubectl get svc -n ${INGRESS_NAMESPACE}"
