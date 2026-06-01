@@ -30,6 +30,8 @@ helm upgrade --install metrics-server metrics-server/metrics-server \
   --namespace kube-system \
   --values "$ROOT_DIR/k8s/helm/metrics-server-values.yaml"
 
+kubectl rollout status deployment/metrics-server -n kube-system --timeout=120s
+
 helm upgrade --install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver \
   --namespace kube-system \
   --values "$ROOT_DIR/k8s/helm/ebs-csi-values.yaml"
@@ -37,17 +39,23 @@ helm upgrade --install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver 
 kubectl rollout status deployment/ebs-csi-controller -n kube-system --timeout=120s
 kubectl rollout status daemonset/ebs-csi-node -n kube-system --timeout=120s
 
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace "$INGRESS_NAMESPACE" \
-  --create-namespace \
-  --values "$ROOT_DIR/k8s/helm/ingress-nginx-values.yaml"
-
 helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
   --namespace "$MONITORING_NAMESPACE" \
   --create-namespace \
   --values "$ROOT_DIR/k8s/helm/kube-prometheus-stack-values.yaml" \
   --set grafana.persistence.storageClassName="$STORAGE_CLASS" \
   --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName="$STORAGE_CLASS"
+
+kubectl rollout status deployment/kube-prometheus-stack-operator -n "$MONITORING_NAMESPACE" --timeout=120s
+kubectl rollout status deployment/kube-prometheus-stack-grafana -n "$MONITORING_NAMESPACE" --timeout=120s
+kubectl rollout status statefulset/prometheus-kube-prometheus-prometheus -n "$MONITORING_NAMESPACE" --timeout=120s
+
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace "$INGRESS_NAMESPACE" \
+  --create-namespace \
+  --values "$ROOT_DIR/k8s/helm/ingress-nginx-values.yaml"
+
+kubectl rollout status deployment/ingress-nginx-controller -n "$INGRESS_NAMESPACE" --timeout=120s
 
 app_args=(
   upgrade --install fastapi-app "$ROOT_DIR/charts/fastapi-app"
@@ -60,6 +68,8 @@ if [[ -n "$APP_VALUES_FILE" ]]; then
 fi
 
 helm "${app_args[@]}"
+
+kubectl rollout status deployment/fastapi-app -n "$APP_NAMESPACE" --timeout=120s
 
 echo "Deployment finished."
 echo "Verify NodePorts: kubectl get svc -n ${INGRESS_NAMESPACE}"
