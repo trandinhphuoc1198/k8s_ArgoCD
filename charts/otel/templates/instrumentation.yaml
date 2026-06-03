@@ -22,7 +22,7 @@ spec:
   # Send to the node-local DaemonSet Collector (HOST_IP is injected by the
   # operator via the downward API).
   exporter:
-    endpoint: http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpHttp }}
+    endpoint: http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpGrpc }}
 
   # ── Propagators ──────────────────────────────────────────────────────────
   propagators:
@@ -58,9 +58,9 @@ spec:
       - name: OTEL_LOGS_EXPORTER
         value: otlp
 
-      # Use OTLP/HTTP (proto) — easier to debug, no HTTP/2 required
+      # Use OTLP/gRPC for better performance and efficiency
       - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
+        value: grpc
 
       # ── Python-specific instrumentation libraries ─────────────────────────
       # opentelemetry-instrumentation-auto enables all installed libraries.

@@ -1,0 +1,88 @@
+# k8s/helm/otel-operator-values.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Values for:  open-telemetry/opentelemetry-operator
+#
+# Install command (run once before deploying the otel chart):
+#
+#   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+#   helm repo update
+#
+#   helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
+#     --namespace observability \
+#     --create-namespace \
+#     --version 0.64.2 \
+#     --values k8s/helm/otel-operator-values.yaml \
+#     --wait
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Manager / Operator ────────────────────────────────────────────────────────
+manager:
+  image:
+    repository: ghcr.io/open-telemetry/opentelemetry-operator/opentelemetry-operator
+    tag: ""    # uses Chart appVersion by default
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+  # Leader election (set false for single-replica dev clusters)
+  leaderElection:
+    enabled: true
+
+  # Metrics endpoint (scraped by kube-prometheus-stack)
+  metrics:
+    enabledWithoutTLS: true
+
+  # Enable auto-instrumentation for Python (and others as needed)
+  featureGates:
+    - "+operator.autoinstrumentation.go"
+    - "+operator.autoinstrumentation.nginx"
+
+# ── Admission webhook ─────────────────────────────────────────────────────────
+admissionWebhooks:
+  create: true
+  failurePolicy: Ignore   # Ignore = pods still start if operator is down
+
+  certManager:
+    enabled: false         # set true if cert-manager is installed
+
+  autoGenerateCert:
+    enabled: true
+    recreate: true
+
+# ── CRD installation ──────────────────────────────────────────────────────────
+crds:
+  create: true
+
+# ── RBAC ─────────────────────────────────────────────────────────────────────
+rbac:
+  create: true
+
+# ── kubeRBACProxy (secures /metrics) ─────────────────────────────────────────
+kubeRBACProxy:
+  enabled: true
+  image:
+    repository: gcr.io/kubebuilder/kube-rbac-proxy
+    tag: "v0.15.0"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# ── Pod settings ──────────────────────────────────────────────────────────────
+replicaCount: 1
+
+tolerations: []
+affinity: {}
+nodeSelector: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8443"

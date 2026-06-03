@@ -1,88 +1,126 @@
-# k8s/helm/otel-operator-values.yaml
 # ─────────────────────────────────────────────────────────────────────────────
-# Values for:  open-telemetry/opentelemetry-operator
-#
-# Install command (run once before deploying the otel chart):
-#
-#   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-#   helm repo update
-#
-#   helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
-#     --namespace observability \
-#     --create-namespace \
-#     --version 0.64.2 \
-#     --values k8s/helm/otel-operator-values.yaml \
-#     --wait
+# charts/otel/values.yaml
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Manager / Operator ────────────────────────────────────────────────────────
-manager:
-  image:
-    repository: ghcr.io/open-telemetry/opentelemetry-operator/opentelemetry-operator
-    tag: ""    # uses Chart appVersion by default
+# ---------------------------------------------------------------------------
+# Global
+# ---------------------------------------------------------------------------
+global:
+  # Namespace where the OTel stack lives (must match --namespace on helm install)
+  namespace: observability
 
-  resources:
-    limits:
-      cpu: 500m
-      memory: 256Mi
-    requests:
-      cpu: 100m
-      memory: 64Mi
+# ---------------------------------------------------------------------------
+# OpenTelemetry Operator (installed via k8s/helm/otel-operator-values.yaml)
+# These values are referenced here for documentation / cross-reference only.
+# ---------------------------------------------------------------------------
 
-  # Leader election (set false for single-replica dev clusters)
-  leaderElection:
-    enabled: true
-
-  # Metrics endpoint (scraped by kube-prometheus-stack)
-  metrics:
-    enabledWithoutTLS: true
-
-  # Enable auto-instrumentation for Python (and others as needed)
-  featureGates:
-    - "+operator.autoinstrumentation.go"
-    - "+operator.autoinstrumentation.nginx"
-
-# ── Admission webhook ─────────────────────────────────────────────────────────
-admissionWebhooks:
-  create: true
-  failurePolicy: Ignore   # Ignore = pods still start if operator is down
-
-  certManager:
-    enabled: false         # set true if cert-manager is installed
-
-  autoGenerateCert:
-    enabled: true
-    recreate: true
-
-# ── CRD installation ──────────────────────────────────────────────────────────
-crds:
-  create: true
-
-# ── RBAC ─────────────────────────────────────────────────────────────────────
-rbac:
-  create: true
-
-# ── kubeRBACProxy (secures /metrics) ─────────────────────────────────────────
-kubeRBACProxy:
+# ---------------------------------------------------------------------------
+# Collector — Node-level DaemonSet
+# Receives OTLP from every pod on the node, does local batching, then
+# forwards to the aggregator Deployment.
+# ---------------------------------------------------------------------------
+collectorDaemonSet:
   enabled: true
-  image:
-    repository: gcr.io/kubebuilder/kube-rbac-proxy
-    tag: "v0.15.0"
+  name: otel-collector-ds
+  replicas: 1          # ignored for DaemonSet but kept for reference
+
   resources:
     limits:
       cpu: 200m
-      memory: 128Mi
+      memory: 256Mi
     requests:
-      cpu: 50m
-      memory: 64Mi
+      cpu: 100m
+      memory: 100Mi
 
-# ── Pod settings ──────────────────────────────────────────────────────────────
-replicaCount: 1
+  # OTLP receiver ports exposed on the node
+  ports:
+    otlpGrpc: 4317
+    otlpHttp: 4318
 
-tolerations: []
-affinity: {}
-nodeSelector: {}
+# ---------------------------------------------------------------------------
+# Collector — Aggregator Deployment
+# Central fan-in: receives from all DaemonSet nodes, exports to backends.
+# ---------------------------------------------------------------------------
+collectorDeployment:
+  enabled: true
+  name: otel-collector-agg
+  replicas: 2
 
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8443"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+# ---------------------------------------------------------------------------
+# Backends
+# Set enabled: true for every backend you actually have.
+# ---------------------------------------------------------------------------
+backends:
+  # Jaeger (all-in-one or production)
+  jaeger:
+    enabled: true
+    endpoint: "jaeger-collector.observability.svc.cluster.local:4317"   # OTLP gRPC
+
+  # Prometheus remote-write  (kube-prometheus-stack)
+  prometheus:
+    enabled: true
+    endpoint: "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+
+  # Grafana Tempo
+  tempo:
+    enabled: false
+    endpoint: "tempo.observability.svc.cluster.local:4317"
+
+  # Generic OTLP endpoint (e.g. Grafana Cloud, Honeycomb, Lightstep)
+  otlpExternal:
+    enabled: false
+    endpoint: "https://otlp.example.com:4317"
+    tls:
+      insecure: false
+    headers: {}
+    #  x-honeycomb-team: "YOUR_API_KEY"
+
+# ---------------------------------------------------------------------------
+# Instrumentation CR  (auto-instrumentation injection)
+# ---------------------------------------------------------------------------
+instrumentation:
+  name: fastapi-instrumentation
+
+  # Sampling: 1.0 = 100 %, lower for high-traffic services
+  samplingRatio: "1.0"
+  samplingRatioRemote: "0.1"   # used by ParentBasedTraceIdRatio sampler
+
+  python:
+    # Image that ships the Python OTel SDK & auto-instrumentation packages
+    image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.46b0"
+    resourceRequirements:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  # Extra env vars injected into instrumented pods alongside the SDK vars
+  env: []
+  # - name: OTEL_LOG_LEVEL
+  #   value: debug
+
+  # Resource attributes added to every span / metric
+  resourceAttributes:
+    deployment.environment: production
+    service.namespace: fastapi
+
+# ---------------------------------------------------------------------------
+# ServiceMonitor for the aggregator Collector
+# (requires kube-prometheus-stack CRDs)
+# ---------------------------------------------------------------------------
+serviceMonitor:
+  enabled: true
+  interval: "30s"
+  scrapeTimeout: "10s"
+  labels:
+    release: kube-prometheus-stack   # must match Prometheus operator labelSelector

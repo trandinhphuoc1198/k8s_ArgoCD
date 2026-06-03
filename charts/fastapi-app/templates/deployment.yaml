@@ -42,6 +42,7 @@ spec:
               containerPort: {{ .Values.containerPort }}
               protocol: TCP
           env:
+            # ── Database credentials (unchanged) ────────────────────────────
             - name: DB_HOST
               valueFrom:
                 secretKeyRef:
@@ -93,11 +94,12 @@ spec:
             # Attach k8s context to every span / metric as resource attributes
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE),deployment.environment={{ .Values.opentelemetry.environment | default "production" }}"
-            # Point the SDK at the node-local DaemonSet collector (OTLP/HTTP)
+            # Point the SDK at the node-local DaemonSet collector (OTLP/gRPC)
+            # gRPC uses HTTP/2 + binary protobuf — best throughput, lowest overhead.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://$(HOST_IP):4318"
+              value: "http://$(HOST_IP):4317"
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              value: "http/protobuf"
+              value: "grpc"
             # Correlate log records with the active trace
             - name: OTEL_PYTHON_LOG_CORRELATION
               value: "true"
