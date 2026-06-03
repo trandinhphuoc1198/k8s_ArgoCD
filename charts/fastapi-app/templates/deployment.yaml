@@ -5,7 +5,9 @@ metadata:
   labels:
     {{- include "fastapi-app.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "fastapi-app.selectorLabels" . | nindent 6 }}
@@ -16,10 +18,19 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
       annotations:
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
+        {{- if .Values.opentelemetry.enabled }}
+        # ── OpenTelemetry auto-instrumentation ──────────────────────────────
+        # The OTel Operator webhook reads this annotation and injects an
+        # init-container that copies the Python SDK into the pod, then sets
+        # PYTHONPATH + OTEL_* env vars automatically.
+        instrumentation.opentelemetry.io/inject-python: {{ .Values.opentelemetry.instrumentationNamespace | default .Release.Namespace | printf "%s/fastapi-instrumentation" | quote }}
+        # We forward to the node-level DaemonSet collector, not a sidecar.
+        sidecar.opentelemetry.io/inject: "false"
+        {{- end }}
     spec:
       serviceAccountName: {{ include "fastapi-app.serviceAccountName" . }}
       containers:
@@ -58,6 +69,38 @@ spec:
                   key: DB_NAME
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if .Values.opentelemetry.enabled }}
+            # ── OpenTelemetry SDK env vars ───────────────────────────────────
+            # HOST_IP: lets the SDK resolve the node-local DaemonSet collector
+            # without needing a fixed ClusterIP or service name.
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            # Downward-API vars used to build OTEL_RESOURCE_ATTRIBUTES
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # Human-readable service name that appears in Jaeger / Tempo
+            - name: OTEL_SERVICE_NAME
+              value: {{ include "fastapi-app.fullname" . | quote }}
+            # Attach k8s context to every span / metric as resource attributes
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE),deployment.environment={{ .Values.opentelemetry.environment | default "production" }}"
+            # Point the SDK at the node-local DaemonSet collector (OTLP/HTTP)
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://$(HOST_IP):4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+            # Correlate log records with the active trace
+            - name: OTEL_PYTHON_LOG_CORRELATION
+              value: "true"
             {{- end }}
           {{- if .Values.probes.enabled }}
           livenessProbe:

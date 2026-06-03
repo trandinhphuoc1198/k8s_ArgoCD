@@ -1,0 +1,220 @@
+# charts/otel/templates/collector-deployment.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Aggregator Collector (Deployment mode)
+#
+# Fan-in point: receives from all node-level DaemonSet collectors, applies
+# tail-sampling, then exports to Jaeger / Prometheus / Tempo / external OTLP.
+# ─────────────────────────────────────────────────────────────────────────────
+{{- if .Values.collectorDeployment.enabled }}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ include "otel.collectorAgg.name" . }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "otel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector-aggregator
+spec:
+  # ── Deployment mode ───────────────────────────────────────────────────────
+  mode: deployment
+  replicas: {{ .Values.collectorDeployment.replicas }}
+
+  serviceAccount: otel-collector
+
+  resources:
+    {{- toYaml .Values.collectorDeployment.resources | nindent 4 }}
+
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      protocol: TCP
+    - name: metrics
+      port: 8888
+      protocol: TCP
+
+  # ── Collector config ──────────────────────────────────────────────────────
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 20
+
+      batch:
+        send_batch_size: 1024
+        send_batch_max_size: 2048
+        timeout: 10s
+
+      # Tail-based sampling — keeps 100 % of error/slow traces, samples the rest
+      tail_sampling:
+        decision_wait: 10s
+        num_traces: 50000
+        expected_new_traces_per_sec: 500
+        policies:
+          # Always keep error traces
+          - name: errors-policy
+            type: status_code
+            status_code: { status_codes: [ERROR] }
+
+          # Always keep slow traces (>2 s)
+          - name: slow-traces-policy
+            type: latency
+            latency: { threshold_ms: 2000 }
+
+          # Always keep traces that have a specific attribute (e.g. debug flag)
+          - name: debug-traces-policy
+            type: string_attribute
+            string_attribute:
+              key: sampling.priority
+              values: ["1"]
+
+          # Sample remaining traffic at the configured ratio
+          - name: probabilistic-policy
+            type: probabilistic
+            probabilistic:
+              sampling_percentage: 10
+
+      # Redact sensitive fields before export
+      attributes/redact:
+        actions:
+          - key: http.request.header.authorization
+            action: delete
+          - key: db.statement
+            action: hash
+          - key: http.url
+            pattern: "(password|token|secret|key)=[^&]*"
+            action: update
+            value: "REDACTED"
+
+      resource/env:
+        attributes:
+          - key: deployment.environment
+            value: {{ .Values.instrumentation.resourceAttributes | dig "deployment.environment" "production" | quote }}
+            action: upsert
+
+    exporters:
+      {{- if .Values.backends.jaeger.enabled }}
+      # ── Jaeger ─────────────────────────────────────────────────────────────
+      otlp/jaeger:
+        endpoint: {{ .Values.backends.jaeger.endpoint | quote }}
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          num_consumers: 10
+          queue_size: 5000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 60s
+      {{- end }}
+
+      {{- if .Values.backends.tempo.enabled }}
+      # ── Grafana Tempo ──────────────────────────────────────────────────────
+      otlp/tempo:
+        endpoint: {{ .Values.backends.tempo.endpoint | quote }}
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          num_consumers: 10
+          queue_size: 5000
+        retry_on_failure:
+          enabled: true
+      {{- end }}
+
+      {{- if .Values.backends.prometheus.enabled }}
+      # ── Prometheus remote-write ────────────────────────────────────────────
+      prometheusremotewrite:
+        endpoint: {{ .Values.backends.prometheus.endpoint | quote }}
+        tls:
+          insecure_skip_verify: false
+        resource_to_telemetry_conversion:
+          enabled: true
+        retry_on_failure:
+          enabled: true
+      {{- end }}
+
+      {{- if .Values.backends.otlpExternal.enabled }}
+      # ── External OTLP endpoint ─────────────────────────────────────────────
+      otlp/external:
+        endpoint: {{ .Values.backends.otlpExternal.endpoint | quote }}
+        tls:
+          insecure: {{ .Values.backends.otlpExternal.tls.insecure }}
+        headers:
+          {{- toYaml .Values.backends.otlpExternal.headers | nindent 10 }}
+        sending_queue:
+          enabled: true
+          num_consumers: 10
+          queue_size: 5000
+      {{- end }}
+
+      debug:
+        verbosity: basic
+        sampling_initial: 2
+        sampling_thereafter: 500
+
+    extensions:
+      health_check:
+        endpoint: "0.0.0.0:13133"
+      pprof:
+        endpoint: "0.0.0.0:1777"
+      zpages:
+        endpoint: "0.0.0.0:55679"
+
+    service:
+      extensions: [health_check, pprof, zpages]
+      pipelines:
+        traces:
+          receivers:  [otlp]
+          processors: [memory_limiter, tail_sampling, attributes/redact, resource/env, batch]
+          exporters:
+            - debug
+            {{- if .Values.backends.jaeger.enabled }}
+            - otlp/jaeger
+            {{- end }}
+            {{- if .Values.backends.tempo.enabled }}
+            - otlp/tempo
+            {{- end }}
+            {{- if .Values.backends.otlpExternal.enabled }}
+            - otlp/external
+            {{- end }}
+
+        metrics:
+          receivers:  [otlp]
+          processors: [memory_limiter, resource/env, batch]
+          exporters:
+            - debug
+            {{- if .Values.backends.prometheus.enabled }}
+            - prometheusremotewrite
+            {{- end }}
+            {{- if .Values.backends.otlpExternal.enabled }}
+            - otlp/external
+            {{- end }}
+
+        logs:
+          receivers:  [otlp]
+          processors: [memory_limiter, resource/env, batch]
+          exporters:
+            - debug
+            {{- if .Values.backends.otlpExternal.enabled }}
+            - otlp/external
+            {{- end }}
+
+      telemetry:
+        logs:
+          level: "info"
+        metrics:
+          address: "0.0.0.0:8888"
+{{- end }}

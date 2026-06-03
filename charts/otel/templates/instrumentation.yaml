@@ -1,0 +1,101 @@
+# charts/otel/templates/instrumentation.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Instrumentation CR
+#
+# The OTel Operator watches for pods annotated with:
+#   instrumentation.opentelemetry.io/inject-python: "true"
+#
+# It then:
+#   1. Injects an init-container that copies the Python SDK into the pod.
+#   2. Sets PYTHONPATH, OTEL_* env vars automatically.
+#   3. Points the SDK at the node-local DaemonSet collector via HOST_IP.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: {{ .Values.instrumentation.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "otel.labels" . | nindent 4 }}
+spec:
+  # ── Exporter ─────────────────────────────────────────────────────────────
+  # Send to the node-local DaemonSet Collector (HOST_IP is injected by the
+  # operator via the downward API).
+  exporter:
+    endpoint: http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpHttp }}
+
+  # ── Propagators ──────────────────────────────────────────────────────────
+  propagators:
+    - tracecontext   # W3C TraceContext — standard HTTP header propagation
+    - baggage        # W3C Baggage
+    - b3             # B3 multi-header (Zipkin compat)
+
+  # ── Sampler ──────────────────────────────────────────────────────────────
+  sampler:
+    # ParentBased: honours the parent's sampling decision when present,
+    # falls back to TraceIdRatioBased for root spans.
+    type: parentbased_traceidratio
+    argument: {{ .Values.instrumentation.samplingRatio | quote }}
+
+  # ── Python auto-instrumentation ───────────────────────────────────────────
+  python:
+    image: {{ .Values.instrumentation.python.image | quote }}
+    resourceRequirements:
+      {{- toYaml .Values.instrumentation.python.resourceRequirements | nindent 6 }}
+    env:
+      # ── Service identification ────────────────────────────────────────────
+      # OTEL_SERVICE_NAME is set per-pod via the pod annotation:
+      #   instrumentation.opentelemetry.io/inject-python: "true"
+      # You can override it globally here if needed:
+      # - name: OTEL_SERVICE_NAME
+      #   value: fastapi-app
+
+      # ── SDK behaviour ─────────────────────────────────────────────────────
+      - name: OTEL_TRACES_EXPORTER
+        value: otlp
+      - name: OTEL_METRICS_EXPORTER
+        value: otlp
+      - name: OTEL_LOGS_EXPORTER
+        value: otlp
+
+      # Use OTLP/HTTP (proto) — easier to debug, no HTTP/2 required
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: http/protobuf
+
+      # ── Python-specific instrumentation libraries ─────────────────────────
+      # opentelemetry-instrumentation-auto enables all installed libraries.
+      # FastAPI, SQLAlchemy, httpx, redis, celery etc. are picked up
+      # automatically if the packages are present in the app image.
+      - name: OTEL_PYTHON_DISABLED_INSTRUMENTATIONS
+        value: ""   # comma-separated list of libraries to skip, e.g. "aws_lambda"
+
+      # ── Logging correlation ───────────────────────────────────────────────
+      # Injects trace_id / span_id into every log record
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: OTEL_PYTHON_LOG_LEVEL
+        value: "info"
+
+      # ── Batch span processor ─────────────────────────────────────────────
+      - name: OTEL_BSP_MAX_EXPORT_BATCH_SIZE
+        value: "256"
+      - name: OTEL_BSP_EXPORT_TIMEOUT
+        value: "5000"   # ms
+
+      # ── Resource attributes ───────────────────────────────────────────────
+      - name: OTEL_RESOURCE_ATTRIBUTES
+        value: >-
+          deployment.environment={{ .Values.instrumentation.resourceAttributes | dig "deployment.environment" "production" }},
+          service.namespace={{ .Values.instrumentation.resourceAttributes | dig "service.namespace" "default" }}
+
+      {{- with .Values.instrumentation.env }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+
+  # ── Resource attributes added by the operator to every span ──────────────
+  resource:
+    resourceAttributes:
+      {{- range $k, $v := .Values.instrumentation.resourceAttributes }}
+      - key: {{ $k }}
+        value: {{ $v | quote }}
+      {{- end }}
