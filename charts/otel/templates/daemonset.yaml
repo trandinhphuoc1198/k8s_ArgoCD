@@ -2,11 +2,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Node-level DaemonSet Collector
 #
-# Every pod annotated with auto-instrumentation sends OTLP to the local node's
-# collector via the downward-API-injected env var:
-#   OTEL_EXPORTER_OTLP_ENDPOINT=http://$(HOST_IP):4317
-# This collector batches locally, enriches with k8sattributes, then forwards
-# to the aggregator Deployment over gRPC.
+# Receives OTLP/gRPC from every pod on the node, enriches spans with k8s
+# metadata, filters health-check noise, then routes to the aggregator using a
+# loadbalancing exporter keyed by traceID.
+#
+# The traceID-based load balancing is REQUIRED when the aggregator runs as a
+# multi-replica Deployment with tail_sampling: all spans of a trace must land
+# on the same aggregator replica so the sampler can evaluate the full trace.
 # ─────────────────────────────────────────────────────────────────────────────
 {{- if .Values.collectorDaemonSet.enabled }}
 apiVersion: opentelemetry.io/v1beta1
@@ -18,29 +20,18 @@ metadata:
     {{- include "otel.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector-daemonset
 spec:
-  # ── Deployment mode ───────────────────────────────────────────────────────
   mode: daemonset
-
-  # ── Service account (created separately) ─────────────────────────────────
   serviceAccount: otel-collector
 
-  # ── Resource limits ───────────────────────────────────────────────────────
   resources:
     {{- toYaml .Values.collectorDaemonSet.resources | nindent 4 }}
 
-  # ── Host network / port exposure ──────────────────────────────────────────
-  # Pods send to HOST_IP:4317 — the DaemonSet pod is on every node.
   hostNetwork: false
-
   ports:
     - name: otlp-grpc
       port: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
       protocol: TCP
-    - name: otlp-http
-      port: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
-      protocol: TCP
 
-  # ── Environment variables ─────────────────────────────────────────────────
   env:
     - name: MY_NODE_NAME
       valueFrom:
@@ -51,17 +42,26 @@ spec:
         fieldRef:
           fieldPath: status.podIP
 
-  # ── Collector config ──────────────────────────────────────────────────────
   config:
     receivers:
       otlp:
         protocols:
           grpc:
             endpoint: "0.0.0.0:{{ .Values.collectorDaemonSet.ports.otlpGrpc }}"
-          http:
-            endpoint: "0.0.0.0:{{ .Values.collectorDaemonSet.ports.otlpHttp }}"
+            keepalive:
+              server_parameters:
+                max_connection_idle: 60s
+                max_connection_age: 300s
+                time: 30s
+                timeout: 10s
+            max_recv_msg_size_mib: 16
 
     processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+
       # Enrich every span with k8s metadata (pod, namespace, node, deployment…)
       k8sattributes:
         auth_type: serviceAccount
@@ -97,23 +97,17 @@ spec:
           - sources:
               - from: connection
 
-      # Add node name as a resource attribute
+      # Stamp the collector type — k8sattributes already sets k8s.node.name
+      # from pod metadata so we only add the collector.type marker here.
       resource:
         attributes:
-          - key: k8s.node.name
-            value: "${MY_NODE_NAME}"
-            action: insert
           - key: collector.type
             value: daemonset
             action: insert
 
-      # Batch before forwarding to reduce gRPC calls
-      batch:
-        send_batch_size: 512
-        send_batch_max_size: 1024
-        timeout: 5s
-
-      # Drop noisy health-check spans
+      # Drop health-check and metrics-scrape spans before forwarding.
+      # Both old (http.target) and new (url.path) semconv attribute names are
+      # checked for compatibility across SDK versions.
       filter/health:
         error_mode: ignore
         traces:
@@ -121,31 +115,51 @@ spec:
             - 'attributes["http.target"] == "/health"'
             - 'attributes["http.target"] == "/healthz"'
             - 'attributes["http.target"] == "/readyz"'
-            - 'attributes["http.route"] == "/metrics"'
+            - 'attributes["http.target"] == "/metrics"'
+            - 'attributes["url.path"] == "/health"'
+            - 'attributes["url.path"] == "/healthz"'
+            - 'attributes["url.path"] == "/readyz"'
+            - 'attributes["url.path"] == "/metrics"'
 
-      # Memory limiter — safety valve
-      memory_limiter:
-        check_interval: 1s
-        limit_percentage: 75
-        spike_limit_percentage: 15
+      # The DaemonSet batch timeout must be significantly less than the
+      # aggregator's tail_sampling.decision_wait (10s). Spans need to arrive
+      # at the aggregator well before the decision window closes so the sampler
+      # sees a complete trace. 2s here gives an 8s margin before the 10s window.
+      batch:
+        send_batch_size: 512
+        send_batch_max_size: 1024
+        timeout: 2s
 
     exporters:
-      # Forward to the aggregator Deployment
-      otlp/aggregator:
-        endpoint: "{{ include "otel.collectorAgg.name" . }}-collector.{{ .Values.global.namespace }}.svc.cluster.local:4317"
-        tls:
-          insecure: true
-        sending_queue:
-          enabled: true
-          num_consumers: 4
-          queue_size: 100
-        retry_on_failure:
-          enabled: true
-          initial_interval: 5s
-          max_interval: 30s
-          max_elapsed_time: 300s
+      # loadbalancing exporter routes all spans of the same traceID to the same
+      # aggregator replica — mandatory for correct tail-sampling decisions.
+      loadbalancing:
+        routing_key: traceID
+        protocol:
+          otlp:
+            tls:
+              insecure: true
+            compression: gzip
+            keepalive:
+              time: 30s
+              timeout: 10s
+              permit_without_stream: true
+            sending_queue:
+              enabled: true
+              num_consumers: 4
+              queue_size: 100
+            retry_on_failure:
+              enabled: true
+              initial_interval: 5s
+              max_interval: 30s
+              max_elapsed_time: 300s
+        resolver:
+          # DNS resolver watches the headless service — automatically picks up
+          # new aggregator pods as they scale up/down.
+          dns:
+            hostname: "{{ include "otel.collectorAgg.name" . }}-collector-headless.{{ .Values.global.namespace }}.svc.cluster.local"
+            port: 4317
 
-      # Debug exporter — disable in production
       debug:
         verbosity: basic
         sampling_initial: 2
@@ -165,15 +179,15 @@ spec:
         traces:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, filter/health, batch]
-          exporters:  [otlp/aggregator]
+          exporters:  [loadbalancing]
         metrics:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]
-          exporters:  [otlp/aggregator]
+          exporters:  [loadbalancing]
         logs:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]
-          exporters:  [otlp/aggregator]
+          exporters:  [loadbalancing]
 
       telemetry:
         logs:

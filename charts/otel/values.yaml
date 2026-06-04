@@ -10,41 +10,13 @@ global:
   namespace: observability
 
 # ---------------------------------------------------------------------------
-# OpenTelemetry Operator (installed via k8s/helm/otel-operator-values.yaml)
-# These values are referenced here for documentation / cross-reference only.
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # Collector — Node-level DaemonSet
-# Receives OTLP from every pod on the node, does local batching, then
-# forwards to the aggregator Deployment.
+# Receives OTLP/gRPC from every pod on the node, enriches with k8s metadata,
+# then forwards to the aggregator Deployment.
 # ---------------------------------------------------------------------------
 collectorDaemonSet:
   enabled: true
   name: otel-collector-ds
-  replicas: 1          # ignored for DaemonSet but kept for reference
-
-  resources:
-    limits:
-      cpu: 200m
-      memory: 256Mi
-    requests:
-      cpu: 100m
-      memory: 100Mi
-
-  # OTLP receiver ports exposed on the node
-  ports:
-    otlpGrpc: 4317
-    otlpHttp: 4318
-
-# ---------------------------------------------------------------------------
-# Collector — Aggregator Deployment
-# Central fan-in: receives from all DaemonSet nodes, exports to backends.
-# ---------------------------------------------------------------------------
-collectorDeployment:
-  enabled: true
-  name: otel-collector-agg
-  replicas: 2
 
   resources:
     limits:
@@ -54,27 +26,98 @@ collectorDeployment:
       cpu: 100m
       memory: 100Mi
 
+  # gRPC is the only receiver — HTTP has been intentionally removed.
+  ports:
+    otlpGrpc: 4317
+
+# ---------------------------------------------------------------------------
+# Collector — Aggregator Deployment
+# Central fan-in: receives from all DaemonSet nodes, applies tail-sampling,
+# then exports to backends.
+# ---------------------------------------------------------------------------
+collectorDeployment:
+  enabled: true
+  name: otel-collector-agg
+  replicas: 2
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 200Mi
+
+  # ---------------------------------------------------------------------------
+  # Tail-sampling — all knobs in one place, referenced by the collector template.
+  #
+  # How it works:
+  #   All spans for a trace are buffered in memory until decisionWait expires.
+  #   Policies are then evaluated against the COMPLETE trace. A trace is kept
+  #   if ANY policy matches; otherwise it is dropped.
+  #
+  # The real timing constraint is on the DaemonSet collector:
+  #   DaemonSet batch.timeout (2s) << Aggregator decisionWait (10s)
+  #   Spans must arrive at the aggregator well before the decision window closes.
+  #   The aggregator's own batch processor runs AFTER tail_sampling in the
+  #   pipeline, so its timeout has no effect on sampling decisions at all.
+  # ---------------------------------------------------------------------------
+  tailSampling:
+    # How long to buffer all spans for a trace before deciding keep/drop.
+    decisionWait: 10s
+
+    # In-memory trace buffer slots. Each slot = one complete trace (all spans).
+    # Formula: expectedTracesPerSec * decisionWait seconds * 2 (burst headroom)
+    # At 500 RPS, 10 s window: 500 * 10 * 2 = 10 000.
+    # Raise if you see "dropping trace" in collector logs.
+    numTraces: 10000
+
+    # Pre-allocation hint — set to your expected steady-state RPS.
+    expectedTracesPerSec: 500
+
+    # Sub-policy 1: always keep traces that contain at least one ERROR span
+    errors:
+      enabled: true
+
+    # Sub-policy 2: always keep traces whose root span exceeds this duration
+    slow:
+      enabled: true
+      thresholdMs: 2000     # 2 seconds — tune to your SLO
+
+    # Sub-policy 3: probabilistic fallback for all remaining traces
+    default:
+      samplingPercentage: 10  # keep 10 % of normal, non-error, non-slow traces
+
+  # Aggregator batch processor — runs after tail_sampling so its timeout only
+  # controls how long to accumulate already-sampled spans before flushing to
+  # exporters. No relationship to decisionWait — tune for export throughput.
+  batch:
+    sendBatchSize: 1024
+    sendBatchMaxSize: 2048
+    timeout: 10s
+
 # ---------------------------------------------------------------------------
 # Backends
 # Set enabled: true for every backend you actually have.
 # ---------------------------------------------------------------------------
 backends:
-  # Jaeger (all-in-one or production)
+  # Jaeger — receives traces via OTLP/gRPC
   jaeger:
-    enabled: true
-    endpoint: "jaeger-collector.observability.svc.cluster.local:4317"   # OTLP gRPC
+    enabled: false
+    endpoint: "jaeger-collector.observability.svc.cluster.local:4317"
 
-  # Prometheus remote-write  (kube-prometheus-stack)
+  # Prometheus remote-write — receives metrics from the aggregator
+  # Namespace should match MONITORING_NAMESPACE in deploy.sh (default: monitoring)
   prometheus:
-    enabled: true
-    endpoint: "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+    enabled: false
+    endpoint: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
 
-  # Grafana Tempo
+  # Grafana Tempo — alternative / additional trace backend
   tempo:
     enabled: false
     endpoint: "tempo.observability.svc.cluster.local:4317"
 
-  # Generic OTLP endpoint (e.g. Grafana Cloud, Honeycomb, Lightstep)
+  # Generic OTLP endpoint (e.g. Grafana Cloud, Honeycomb, Lightstep, Datadog)
   otlpExternal:
     enabled: false
     endpoint: "https://otlp.example.com:4317"
@@ -82,41 +125,55 @@ backends:
       insecure: false
     headers: {}
     #  x-honeycomb-team: "YOUR_API_KEY"
+    #  x-datadog-api-key: "YOUR_API_KEY"
 
 # ---------------------------------------------------------------------------
 # Instrumentation CR  (auto-instrumentation injection)
+#
+# The OTel Operator injects these settings as env vars into any pod annotated
+# with: instrumentation.opentelemetry.io/inject-python: "observability/fastapi-instrumentation"
+# No env vars need to be set manually in the application deployment.
+#
+# samplingRatio is intentionally 1.0 (100 % head sampling) so that all traces
+# reach the aggregator and tail-sampling can make a fully-informed decision.
+# Head-sampling here would blindly drop spans before errors/latency are known.
 # ---------------------------------------------------------------------------
 instrumentation:
   name: fastapi-instrumentation
 
-  # Sampling: 1.0 = 100 %, lower for high-traffic services
   samplingRatio: "1.0"
-  samplingRatioRemote: "0.1"   # used by ParentBasedTraceIdRatio sampler
 
   python:
-    # Image that ships the Python OTel SDK & auto-instrumentation packages
+    # Init-container image that copies the Python OTel SDK into the app pod.
+    # Check for newer releases: https://github.com/open-telemetry/opentelemetry-operator/releases
     image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.46b0"
     resourceRequirements:
+      # This container runs once at pod start to copy files — keep it light.
       limits:
-        cpu: 500m
-        memory: 256Mi
+        cpu: 100m
+        memory: 128Mi
       requests:
         cpu: 50m
         memory: 64Mi
 
-  # Extra env vars injected into instrumented pods alongside the SDK vars
+  # Extra env vars injected into instrumented pods alongside the SDK vars.
+  # Use sparingly — the operator already sets all standard OTEL_* vars.
   env: []
   # - name: OTEL_LOG_LEVEL
   #   value: debug
+  # - name: OTEL_PYTHON_DISABLED_INSTRUMENTATIONS
+  #   value: "aws_lambda"
 
-  # Resource attributes added to every span / metric
+  # Resource attributes attached to every span, metric, and log record.
+  # These appear as top-level fields in Jaeger / Grafana / Tempo.
   resourceAttributes:
     deployment.environment: production
     service.namespace: fastapi
 
 # ---------------------------------------------------------------------------
-# ServiceMonitor for the aggregator Collector
-# (requires kube-prometheus-stack CRDs)
+# ServiceMonitor — scrapes the aggregator Collector's own /metrics endpoint
+# so you can alert on dropped spans, queue depth, export errors, etc.
+# Requires kube-prometheus-stack CRDs to be installed.
 # ---------------------------------------------------------------------------
 serviceMonitor:
   enabled: true

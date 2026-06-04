@@ -79,28 +79,24 @@ serviceMonitor:
   additionalLabels:
     release: kube-prometheus-stack
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OpenTelemetry auto-instrumentation
 #
-# When enabled: true the deployment gains two things:
-#   1. Pod annotations that tell the OTel Operator webhook to inject the
-#      Python SDK init-container (no changes to your app image required).
-#   2. A set of OTEL_* env vars so the SDK knows where to export and what
-#      to call itself.
+# When enabled: true, the pod gets a single annotation that tells the OTel
+# Operator webhook to inject the Python SDK init-container at admission time.
+# The operator then sets ALL OTEL_* env vars automatically from the
+# Instrumentation CR defined in charts/otel — nothing else is needed here.
 #
 # Prerequisites:
-#   - OTel Operator installed in the cluster  (see k8s/helm/otel-operator-values.yaml)
-#   - OTel chart deployed in the observability namespace  (charts/otel/)
+#   - OTel Operator installed  (k8s/helm/otel-operator-values.yaml)
+#   - OTel chart deployed      (charts/otel/, namespace: observability)
 # ─────────────────────────────────────────────────────────────────────────────
 opentelemetry:
-  # Master switch — set false to remove all OTel injection with zero diff elsewhere
+  # Master switch — set false to disable injection with no other changes needed.
   enabled: true
 
-  # Namespace where the Instrumentation CR lives (charts/otel is deployed here).
-  # The annotation value becomes "<instrumentationNamespace>/fastapi-instrumentation".
-  # If left empty it defaults to .Release.Namespace (usually fine for same-ns deploys).
+  # Namespace where the Instrumentation CR lives.
+  # Becomes the prefix in the annotation: "<instrumentationNamespace>/fastapi-instrumentation"
+  # Must match global.namespace in charts/otel/values.yaml.
   instrumentationNamespace: "observability"
-
-  # Value written to the deployment.environment resource attribute on every span.
-  # Override per environment: --set opentelemetry.environment=staging
-  environment: "production"

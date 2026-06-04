@@ -4,6 +4,11 @@
 #
 # Fan-in point: receives from all node-level DaemonSet collectors, applies
 # tail-sampling, then exports to Jaeger / Prometheus / Tempo / external OTLP.
+#
+# IMPORTANT — tail_sampling + multiple replicas:
+#   The DaemonSet uses a loadbalancing exporter (routing_key: traceID) so all
+#   spans of a trace always arrive at the same aggregator replica. Without this,
+#   tail_sampling evaluates incomplete traces and makes wrong decisions.
 # ─────────────────────────────────────────────────────────────────────────────
 {{- if .Values.collectorDeployment.enabled }}
 apiVersion: opentelemetry.io/v1beta1
@@ -15,10 +20,8 @@ metadata:
     {{- include "otel.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector-aggregator
 spec:
-  # ── Deployment mode ───────────────────────────────────────────────────────
   mode: deployment
   replicas: {{ .Values.collectorDeployment.replicas }}
-
   serviceAccount: otel-collector
 
   resources:
@@ -28,22 +31,23 @@ spec:
     - name: otlp-grpc
       port: 4317
       protocol: TCP
-    - name: otlp-http
-      port: 4318
-      protocol: TCP
     - name: metrics
       port: 8888
       protocol: TCP
 
-  # ── Collector config ──────────────────────────────────────────────────────
   config:
     receivers:
       otlp:
         protocols:
           grpc:
             endpoint: "0.0.0.0:4317"
-          http:
-            endpoint: "0.0.0.0:4318"
+            keepalive:
+              server_parameters:
+                max_connection_idle: 60s
+                max_connection_age: 300s
+                time: 30s
+                timeout: 10s
+            max_recv_msg_size_mib: 16
 
     processors:
       memory_limiter:
@@ -51,39 +55,46 @@ spec:
         limit_percentage: 80
         spike_limit_percentage: 20
 
-      batch:
-        send_batch_size: 1024
-        send_batch_max_size: 2048
-        timeout: 10s
-
-      # Tail-based sampling — keeps 100 % of error/slow traces, samples the rest
+      # ── Tail-based sampling ───────────────────────────────────────────────
+      # Buffers all spans for a trace until decision_wait expires, then
+      # evaluates policies against the COMPLETE trace.
+      #
+      # Policy evaluation: a trace is KEPT if ANY policy matches.
+      # Policies are evaluated independently — there is no "else" chain.
+      # This is correct here because:
+      #   - errors-policy  → keep 100 % (overrides nothing, just keeps)
+      #   - slow-policy    → keep 100 % (same)
+      #   - default-policy → keep 10 %  (fires on ALL traces including errors/slow,
+      #                      but those are already kept so the outcome is identical)
+      #
       tail_sampling:
-        decision_wait: 10s
-        num_traces: 50000
-        expected_new_traces_per_sec: 500
+        decision_wait: {{ .Values.collectorDeployment.tailSampling.decisionWait }}
+        num_traces: {{ .Values.collectorDeployment.tailSampling.numTraces }}
+        expected_new_traces_per_sec: {{ .Values.collectorDeployment.tailSampling.expectedTracesPerSec }}
         policies:
-          # Always keep error traces
+          {{- if .Values.collectorDeployment.tailSampling.errors.enabled }}
+          # Keep every trace that contains at least one ERROR span.
+          # Catches: 5xx HTTP responses, unhandled exceptions, gRPC non-OK codes.
           - name: errors-policy
             type: status_code
-            status_code: { status_codes: [ERROR] }
-
-          # Always keep slow traces (>2 s)
-          - name: slow-traces-policy
+            status_code:
+              status_codes: [ERROR]
+          {{- end }}
+          {{- if .Values.collectorDeployment.tailSampling.slow.enabled }}
+          # Keep every trace whose root span duration exceeds the SLO threshold.
+          # Catches: slow DB queries, downstream timeouts, GC pauses.
+          - name: slow-policy
             type: latency
-            latency: { threshold_ms: 2000 }
-
-          # Always keep traces that have a specific attribute (e.g. debug flag)
-          - name: debug-traces-policy
-            type: string_attribute
-            string_attribute:
-              key: sampling.priority
-              values: ["1"]
-
-          # Sample remaining traffic at the configured ratio
-          - name: probabilistic-policy
+            latency:
+              threshold_ms: {{ .Values.collectorDeployment.tailSampling.slow.thresholdMs }}
+          {{- end }}
+          # Probabilistic fallback — keep N % of all remaining traces.
+          # Also evaluates on error/slow traces but they are already kept above,
+          # so the effective drop rate for those is 0 % regardless.
+          - name: default-policy
             type: probabilistic
             probabilistic:
-              sampling_percentage: 10
+              sampling_percentage: {{ .Values.collectorDeployment.tailSampling.default.samplingPercentage }}
 
       # Redact sensitive fields before export
       attributes/redact:
@@ -103,6 +114,15 @@ spec:
             value: {{ .Values.instrumentation.resourceAttributes | dig "deployment.environment" "production" | quote }}
             action: upsert
 
+      # batch runs AFTER tail_sampling in the pipeline, so its timeout has no
+      # effect on sampling decisions — tail_sampling manages its own in-memory
+      # buffering independently. This timeout simply controls how long to
+      # accumulate already-sampled spans before flushing to the exporters.
+      batch:
+        send_batch_size: {{ .Values.collectorDeployment.batch.sendBatchSize }}
+        send_batch_max_size: {{ .Values.collectorDeployment.batch.sendBatchMaxSize }}
+        timeout: {{ .Values.collectorDeployment.batch.timeout }}
+
     exporters:
       {{- if .Values.backends.jaeger.enabled }}
       # ── Jaeger ─────────────────────────────────────────────────────────────
@@ -110,6 +130,11 @@ spec:
         endpoint: {{ .Values.backends.jaeger.endpoint | quote }}
         tls:
           insecure: true
+        compression: gzip
+        keepalive:
+          time: 30s
+          timeout: 10s
+          permit_without_stream: true
         sending_queue:
           enabled: true
           num_consumers: 10
@@ -126,6 +151,11 @@ spec:
         endpoint: {{ .Values.backends.tempo.endpoint | quote }}
         tls:
           insecure: true
+        compression: gzip
+        keepalive:
+          time: 30s
+          timeout: 10s
+          permit_without_stream: true
         sending_queue:
           enabled: true
           num_consumers: 10
@@ -152,6 +182,11 @@ spec:
         endpoint: {{ .Values.backends.otlpExternal.endpoint | quote }}
         tls:
           insecure: {{ .Values.backends.otlpExternal.tls.insecure }}
+        compression: gzip
+        keepalive:
+          time: 30s
+          timeout: 10s
+          permit_without_stream: true
         headers:
           {{- toYaml .Values.backends.otlpExternal.headers | nindent 10 }}
         sending_queue:

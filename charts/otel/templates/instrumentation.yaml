@@ -3,12 +3,15 @@
 # Instrumentation CR
 #
 # The OTel Operator watches for pods annotated with:
-#   instrumentation.opentelemetry.io/inject-python: "true"
+#   instrumentation.opentelemetry.io/inject-python: "observability/fastapi-instrumentation"
 #
 # It then:
 #   1. Injects an init-container that copies the Python SDK into the pod.
-#   2. Sets PYTHONPATH, OTEL_* env vars automatically.
+#   2. Sets PYTHONPATH + all OTEL_* env vars automatically.
 #   3. Points the SDK at the node-local DaemonSet collector via HOST_IP.
+#
+# Nothing needs to be set in the application Deployment — the operator handles
+# all of it from this CR.
 # ─────────────────────────────────────────────────────────────────────────────
 apiVersion: opentelemetry.io/v1alpha1
 kind: Instrumentation
@@ -19,21 +22,23 @@ metadata:
     {{- include "otel.labels" . | nindent 4 }}
 spec:
   # ── Exporter ─────────────────────────────────────────────────────────────
-  # Send to the node-local DaemonSet Collector (HOST_IP is injected by the
-  # operator via the downward API).
+  # Points the SDK at the node-local DaemonSet Collector over gRPC (port 4317).
+  # HOST_IP is resolved at pod-start by the operator via the downward API.
   exporter:
     endpoint: http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpGrpc }}
 
   # ── Propagators ──────────────────────────────────────────────────────────
   propagators:
-    - tracecontext   # W3C TraceContext — standard HTTP header propagation
+    - tracecontext   # W3C TraceContext — standard cross-service propagation
     - baggage        # W3C Baggage
-    - b3             # B3 multi-header (Zipkin compat)
+    - b3             # B3 multi-header (Zipkin / legacy compat)
 
   # ── Sampler ──────────────────────────────────────────────────────────────
+  # Keep head sampling at 1.0 so ALL spans reach the aggregator.
+  # Tail sampling (in the aggregator collector) makes the real keep/drop
+  # decision once the full trace is known. Head-dropping here would
+  # prevent the tail sampler from ever seeing those traces.
   sampler:
-    # ParentBased: honours the parent's sampling decision when present,
-    # falls back to TraceIdRatioBased for root spans.
     type: parentbased_traceidratio
     argument: {{ .Values.instrumentation.samplingRatio | quote }}
 
@@ -43,14 +48,7 @@ spec:
     resourceRequirements:
       {{- toYaml .Values.instrumentation.python.resourceRequirements | nindent 6 }}
     env:
-      # ── Service identification ────────────────────────────────────────────
-      # OTEL_SERVICE_NAME is set per-pod via the pod annotation:
-      #   instrumentation.opentelemetry.io/inject-python: "true"
-      # You can override it globally here if needed:
-      # - name: OTEL_SERVICE_NAME
-      #   value: fastapi-app
-
-      # ── SDK behaviour ─────────────────────────────────────────────────────
+      # ── Exporters ─────────────────────────────────────────────────────────
       - name: OTEL_TRACES_EXPORTER
         value: otlp
       - name: OTEL_METRICS_EXPORTER
@@ -58,35 +56,29 @@ spec:
       - name: OTEL_LOGS_EXPORTER
         value: otlp
 
-      # Use OTLP/gRPC for better performance and efficiency
+      # gRPC protocol — best throughput, lowest per-span overhead.
       - name: OTEL_EXPORTER_OTLP_PROTOCOL
         value: grpc
 
-      # ── Python-specific instrumentation libraries ─────────────────────────
-      # opentelemetry-instrumentation-auto enables all installed libraries.
-      # FastAPI, SQLAlchemy, httpx, redis, celery etc. are picked up
-      # automatically if the packages are present in the app image.
-      - name: OTEL_PYTHON_DISABLED_INSTRUMENTATIONS
-        value: ""   # comma-separated list of libraries to skip, e.g. "aws_lambda"
-
       # ── Logging correlation ───────────────────────────────────────────────
-      # Injects trace_id / span_id into every log record
+      # Injects trace_id / span_id into every Python log record automatically.
       - name: OTEL_PYTHON_LOG_CORRELATION
         value: "true"
       - name: OTEL_PYTHON_LOG_LEVEL
         value: "info"
 
       # ── Batch span processor ─────────────────────────────────────────────
+      # Controls how the SDK batches spans before sending to the collector.
       - name: OTEL_BSP_MAX_EXPORT_BATCH_SIZE
         value: "256"
       - name: OTEL_BSP_EXPORT_TIMEOUT
         value: "5000"   # ms
 
       # ── Resource attributes ───────────────────────────────────────────────
+      # Single-line format required — multi-line YAML scalars produce a space
+      # after the comma which is invalid in the OTel resource attribute syntax.
       - name: OTEL_RESOURCE_ATTRIBUTES
-        value: >-
-          deployment.environment={{ .Values.instrumentation.resourceAttributes | dig "deployment.environment" "production" }},
-          service.namespace={{ .Values.instrumentation.resourceAttributes | dig "service.namespace" "default" }}
+        value: "deployment.environment={{ .Values.instrumentation.resourceAttributes | dig "deployment.environment" "production" }},service.namespace={{ .Values.instrumentation.resourceAttributes | dig "service.namespace" "default" }}"
 
       {{- with .Values.instrumentation.env }}
       {{- toYaml . | nindent 6 }}
