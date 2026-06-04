@@ -21,11 +21,6 @@ metadata:
   labels:
     {{- include "otel.labels" . | nindent 4 }}
 spec:
-  # ── Exporter ─────────────────────────────────────────────────────────────
-  # Points the SDK at the node-local DaemonSet Collector over gRPC (port 4317).
-  # HOST_IP is resolved at pod-start by the operator via the downward API.
-  exporter:
-    endpoint: http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpGrpc }}
 
   # ── Propagators ──────────────────────────────────────────────────────────
   propagators:
@@ -41,7 +36,7 @@ spec:
   sampler:
     type: parentbased_traceidratio
     argument: {{ .Values.instrumentation.samplingRatio | quote }}
-    
+
   # ── Python auto-instrumentation ───────────────────────────────────────────
   python:
     image: {{ .Values.instrumentation.python.image | quote }}
@@ -49,6 +44,12 @@ spec:
       {{- toYaml .Values.instrumentation.python.resourceRequirements | nindent 6 }}
     env:
       # ── Exporters ─────────────────────────────────────────────────────────
+      - name: HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: "http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpGrpc }}"
       - name: OTEL_TRACES_EXPORTER
         value: otlp
       - name: OTEL_METRICS_EXPORTER
