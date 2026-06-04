@@ -60,6 +60,8 @@ spec:
       # gRPC protocol — best throughput, lowest per-span overhead.
       - name: OTEL_EXPORTER_OTLP_PROTOCOL
         value: grpc
+      - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+        value: grpc
 
       # ── Logging correlation ───────────────────────────────────────────────
       - name: OTEL_PYTHON_LOG_CORRELATION
