@@ -52,9 +52,9 @@ spec:
       - name: OTEL_TRACES_EXPORTER
         value: otlp
       - name: OTEL_METRICS_EXPORTER
-        value: otlp
+        value: "none" 
       - name: OTEL_LOGS_EXPORTER
-        value: otlp
+        value: "none" 
 
       # gRPC protocol — best throughput, lowest per-span overhead.
       - name: OTEL_EXPORTER_OTLP_PROTOCOL
