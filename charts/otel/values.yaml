@@ -146,7 +146,7 @@ instrumentation:
   python:
     # Init-container image that copies the Python OTel SDK into the app pod.
     # Check for newer releases: https://github.com/open-telemetry/opentelemetry-operator/releases
-    image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.50b0"
+    image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.60b1"
     resourceRequirements:
       # This container runs once at pod start to copy files — keep it light.
       limits:
