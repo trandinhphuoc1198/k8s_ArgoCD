@@ -87,7 +87,4 @@ spec:
   # ── Resource attributes added by the operator to every span ──────────────
   resource:
     resourceAttributes:
-      {{- range $k, $v := .Values.instrumentation.resourceAttributes }}
-      - key: {{ $k }}
-        value: {{ $v | quote }}
-      {{- end }}
+      {{- toYaml .Values.instrumentation.resourceAttributes | nindent 6 }}
