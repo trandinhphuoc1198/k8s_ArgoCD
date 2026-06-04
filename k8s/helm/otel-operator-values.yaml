@@ -19,6 +19,13 @@ manager:
     repository: ghcr.io/open-telemetry/opentelemetry-operator/opentelemetry-operator
     tag: ""    # uses Chart appVersion by default
 
+  # Required — the default collector image the operator uses when mode/image is
+  # not explicitly set in an OpenTelemetryCollector CR.
+  # Our CRs don't set an image (they rely on the operator config pipeline),
+  # but this field must be non-empty or the chart refuses to install.
+  collectorImage:
+    repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s
+
   resources:
     limits:
       cpu: 500m
