@@ -103,10 +103,15 @@ spec:
             action: delete
           - key: db.statement
             action: hash
-          - key: http.url
-            pattern: "(password|token|secret|key)=[^&]*"
-            action: update
-            value: "REDACTED"
+      # Add the transform processor for regex string replacements
+      transform/redact:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              # $1 retains the matched parameter name (e.g., "token"), replacing the value
+              # Result: "http://api.com?token=123" -> "http://api.com?token=REDACTED"
+              - replace_pattern(attributes["http.url"], "(password|token|secret|key)=[^&]*", "$1=REDACTED")
 
       resource/env:
         attributes:
@@ -213,7 +218,7 @@ spec:
       pipelines:
         traces:
           receivers:  [otlp]
-          processors: [memory_limiter, tail_sampling, attributes/redact, resource/env, batch]
+          processors: [memory_limiter, tail_sampling, attributes/redact, transform/redact, resource/env, batch]
           exporters:
             - debug
             {{- if .Values.backends.jaeger.enabled }}

@@ -131,9 +131,10 @@ spec:
         timeout: 2s
 
     exporters:
-      # loadbalancing exporter routes all spans of the same traceID to the same
-      # aggregator replica — mandatory for correct tail-sampling decisions.
-      loadbalancing:
+      # ── 1. Trace Exporter ─────────────────────────────────────────────────
+      # Routes all spans of the same trace to the same aggregator replica.
+      # Mandatory for correct tail-sampling decisions.
+      loadbalancing/traces:
         routing_key: traceID
         protocol:
           otlp:
@@ -154,8 +155,33 @@ spec:
               max_interval: 30s
               max_elapsed_time: 300s
         resolver:
-          # DNS resolver watches the headless service — automatically picks up
-          # new aggregator pods as they scale up/down.
+          dns:
+            hostname: "{{ include "otel.collectorAgg.name" . }}-collector-headless.{{ .Values.global.namespace }}.svc.cluster.local"
+            port: 4317
+
+      # ── 2. Metrics & Logs Exporter ────────────────────────────────────────
+      # Routes metrics and logs by service name, as they lack trace IDs.
+      loadbalancing/metrics_logs:
+        routing_key: service
+        protocol:
+          otlp:
+            tls:
+              insecure: true
+            compression: gzip
+            keepalive:
+              time: 30s
+              timeout: 10s
+              permit_without_stream: true
+            sending_queue:
+              enabled: true
+              num_consumers: 4
+              queue_size: 100
+            retry_on_failure:
+              enabled: true
+              initial_interval: 5s
+              max_interval: 30s
+              max_elapsed_time: 300s
+        resolver:
           dns:
             hostname: "{{ include "otel.collectorAgg.name" . }}-collector-headless.{{ .Values.global.namespace }}.svc.cluster.local"
             port: 4317
@@ -179,15 +205,15 @@ spec:
         traces:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, filter/health, batch]
-          exporters:  [loadbalancing]
+          exporters:  [loadbalancing/traces]    # <-- Uses traceID
         metrics:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]
-          exporters:  [loadbalancing]
+          exporters:  [loadbalancing/metrics_logs]  # <-- Uses service
         logs:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]
-          exporters:  [loadbalancing]
+          exporters:  [loadbalancing/metrics_logs]  # <-- Uses service
 
       telemetry:
         logs:
