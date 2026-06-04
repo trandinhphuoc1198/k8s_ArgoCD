@@ -41,7 +41,7 @@ spec:
   sampler:
     type: parentbased_traceidratio
     argument: {{ .Values.instrumentation.samplingRatio | quote }}
-
+    
   # ── Python auto-instrumentation ───────────────────────────────────────────
   python:
     image: {{ .Values.instrumentation.python.image | quote }}
@@ -61,24 +61,16 @@ spec:
         value: grpc
 
       # ── Logging correlation ───────────────────────────────────────────────
-      # Injects trace_id / span_id into every Python log record automatically.
       - name: OTEL_PYTHON_LOG_CORRELATION
         value: "true"
       - name: OTEL_PYTHON_LOG_LEVEL
         value: "info"
 
       # ── Batch span processor ─────────────────────────────────────────────
-      # Controls how the SDK batches spans before sending to the collector.
       - name: OTEL_BSP_MAX_EXPORT_BATCH_SIZE
         value: "256"
       - name: OTEL_BSP_EXPORT_TIMEOUT
         value: "5000"   # ms
-
-      # ── Resource attributes ───────────────────────────────────────────────
-      # Single-line format required — multi-line YAML scalars produce a space
-      # after the comma which is invalid in the OTel resource attribute syntax.
-      - name: OTEL_RESOURCE_ATTRIBUTES
-        value: "deployment.environment={{ .Values.instrumentation.resourceAttributes | dig "deployment.environment" "production" }},service.namespace={{ .Values.instrumentation.resourceAttributes | dig "service.namespace" "default" }}"
 
       {{- with .Values.instrumentation.env }}
       {{- toYaml . | nindent 6 }}
@@ -87,4 +79,5 @@ spec:
   # ── Resource attributes added by the operator to every span ──────────────
   resource:
     resourceAttributes:
+      # The operator will safely format these and inject them as OTEL_RESOURCE_ATTRIBUTES
       {{- toYaml .Values.instrumentation.resourceAttributes | nindent 6 }}
