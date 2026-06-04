@@ -1,12 +1,10 @@
 # k8s/helm/otel-operator-values.yaml
 # ─────────────────────────────────────────────────────────────────────────────
-# Values for:  open-telemetry/opentelemetry-operator
+# Values for: open-telemetry/opentelemetry-operator  (chart >= 0.64.2)
 #
-# Install command (run once before deploying the otel chart):
-#
+# Install:
 #   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 #   helm repo update
-#
 #   helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
 #     --namespace observability \
 #     --create-namespace \
@@ -29,26 +27,25 @@ manager:
       cpu: 100m
       memory: 64Mi
 
-  # Leader election (set false for single-replica dev clusters)
+  # Leader election — keep true for HA; set false on single-node dev clusters.
   leaderElection:
     enabled: true
 
-  # Metrics endpoint (scraped by kube-prometheus-stack)
-  metrics:
-    enabledWithoutTLS: true
-
-  # Enable auto-instrumentation for Python (and others as needed)
-  featureGates:
-    - "+operator.autoinstrumentation.go"
-    - "+operator.autoinstrumentation.nginx"
+  # featureGates is a comma-separated STRING (not an array).
+  # Example: "+operator.autoinstrumentation.go,+operator.autoinstrumentation.nginx"
+  # Leave empty to use defaults (Python instrumentation works without any gates).
+  # Note: from chart >= 0.72.1 prefer featureGatesMap over featureGates.
+  featureGates: ""
 
 # ── Admission webhook ─────────────────────────────────────────────────────────
 admissionWebhooks:
   create: true
-  failurePolicy: Ignore   # Ignore = pods still start if operator is down
+  # Ignore = pods still start even if the operator webhook is temporarily down.
+  failurePolicy: Ignore
 
   certManager:
-    enabled: false         # set true if cert-manager is installed
+    # Set true if cert-manager is installed in the cluster (recommended for prod).
+    enabled: false
 
   autoGenerateCert:
     enabled: true
@@ -58,11 +55,7 @@ admissionWebhooks:
 crds:
   create: true
 
-# ── RBAC ─────────────────────────────────────────────────────────────────────
-rbac:
-  create: true
-
-# ── kubeRBACProxy (secures /metrics) ─────────────────────────────────────────
+# ── kubeRBACProxy — secures the manager /metrics endpoint ─────────────────────
 kubeRBACProxy:
   enabled: true
   image:
@@ -76,13 +69,10 @@ kubeRBACProxy:
       cpu: 50m
       memory: 64Mi
 
-# ── Pod settings ──────────────────────────────────────────────────────────────
+# ── Replica count ─────────────────────────────────────────────────────────────
 replicaCount: 1
 
+# ── Scheduling ────────────────────────────────────────────────────────────────
 tolerations: []
 affinity: {}
 nodeSelector: {}
-
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8443"
