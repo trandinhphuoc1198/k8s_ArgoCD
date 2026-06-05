@@ -31,7 +31,6 @@ spec:
     - name: otlp-grpc
       port: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
       protocol: TCP
-      hostPort: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
     # Expose OTLP/HTTP port so your Gunicorn/Uvicorn workers can push traces via http/protobuf
     # - name: otlp-http
     #   port: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
