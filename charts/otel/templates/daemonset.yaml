@@ -2,8 +2,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Node-level DaemonSet Collector
 #
-# Receives OTLP/gRPC from every pod on the node, enriches spans with k8s
-# metadata, filters health-check noise, then routes to the aggregator using a
+# Receives OTLP/gRPC and OTLP/HTTP from every pod on the node, enriches spans with 
+# k8s metadata, filters health-check noise, then routes to the aggregator using a
 # loadbalancing exporter keyed by traceID.
 #
 # The traceID-based load balancing is REQUIRED when the aggregator runs as a
@@ -32,6 +32,14 @@ spec:
       port: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
       protocol: TCP
       hostPort: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
+    # Expose OTLP/HTTP port so your Gunicorn/Uvicorn workers can push traces via http/protobuf
+    - name: otlp-http
+      port: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
+      protocol: TCP
+      hostPort: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
+    - name: metrics
+      port: 8888
+      protocol: TCP
 
   env:
     - name: MY_NODE_NAME
@@ -56,6 +64,9 @@ spec:
                 time: 30s
                 timeout: 10s
             max_recv_msg_size_mib: 16
+          # Active HTTP protocol receiver mapping matching the value from your values.yaml
+          http:
+            endpoint: "0.0.0.0:{{ .Values.collectorDaemonSet.ports.otlpHttp }}"
 
     processors:
       memory_limiter:
@@ -187,10 +198,13 @@ spec:
             hostname: "{{ include "otel.collectorAgg.name" . }}-collector-headless.{{ .Values.global.namespace }}.svc.cluster.local"
             port: 4317
 
+      # ── Dynamic Debug Exporter ─────────────────────────────────────────────
+      {{- if .Values.backends.debug.enabled }}
       debug:
-        verbosity: basic
-        sampling_initial: 2
-        sampling_thereafter: 100
+        verbosity: {{ .Values.backends.debug.verbosity }}
+        sampling_initial: {{ .Values.backends.debug.samplingInitial }}
+        sampling_thereafter: {{ .Values.backends.debug.samplingThereafter }}
+      {{- end }}
 
     extensions:
       health_check:
@@ -206,7 +220,11 @@ spec:
         traces:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, filter/health, batch]
-          exporters:  [loadbalancing/traces]    # <-- Uses traceID
+          exporters:  
+            - loadbalancing/traces
+            {{- if .Values.backends.debug.enabled }}
+            - debug
+            {{- end }}
         metrics:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]

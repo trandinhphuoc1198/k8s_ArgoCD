@@ -29,8 +29,14 @@ spec:
 
   ports:
     - name: otlp-grpc
-      port: 4317
+      port: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
       protocol: TCP
+      hostPort: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
+    # Expose OTLP/HTTP port so your Gunicorn/Uvicorn workers can push traces via http/protobuf
+    # - name: otlp-http
+    #   port: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
+    #   protocol: TCP
+    #   hostPort: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
     - name: metrics
       port: 8888
       protocol: TCP
@@ -200,10 +206,13 @@ spec:
           queue_size: 5000
       {{- end }}
 
+      # ── Dynamic Debug Exporter ─────────────────────────────────────────────
+      {{- if .Values.backends.debug.enabled }}
       debug:
-        verbosity: basic
-        sampling_initial: 2
-        sampling_thereafter: 500
+        verbosity: {{ .Values.backends.debug.verbosity }}
+        sampling_initial: {{ .Values.backends.debug.samplingInitial }}
+        sampling_thereafter: {{ .Values.backends.debug.samplingThereafter }}
+      {{- end }}
 
     extensions:
       health_check:
@@ -220,7 +229,9 @@ spec:
           receivers:  [otlp]
           processors: [memory_limiter, tail_sampling, attributes/redact, transform/redact, resource/env, batch]
           exporters:
+            {{- if .Values.backends.debug.enabled }}
             - debug
+            {{- end }}
             {{- if .Values.backends.jaeger.enabled }}
             - otlp/jaeger
             {{- end }}

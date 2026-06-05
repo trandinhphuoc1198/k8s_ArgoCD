@@ -11,7 +11,7 @@ global:
 
 # ---------------------------------------------------------------------------
 # Collector — Node-level DaemonSet
-# Receives OTLP/gRPC from every pod on the node, enriches with k8s metadata,
+# Receives telemetry from every pod on the node, enriches with k8s metadata,
 # then forwards to the aggregator Deployment.
 # ---------------------------------------------------------------------------
 collectorDaemonSet:
@@ -26,9 +26,12 @@ collectorDaemonSet:
       cpu: 100m
       memory: 100Mi
 
-  # gRPC is the only receiver — HTTP has been intentionally removed.
+  # Protocols enabled on the DaemonSet. HTTP (4318) is required for 
+  # fork-safe Python runtimes (Gunicorn/Uvicorn), while gRPC (4317) is retained 
+  # for other cluster services.
   ports:
     otlpGrpc: 4317
+    otlpHttp: 4318
 
 # ---------------------------------------------------------------------------
 # Collector — Aggregator Deployment
@@ -101,6 +104,13 @@ collectorDeployment:
 # Set enabled: true for every backend you actually have.
 # ---------------------------------------------------------------------------
 backends:
+  # Console / Standard Out Debug Exporter
+  debug:
+    enabled: true
+    verbosity: detailed
+    samplingInitial: 2
+    samplingThereafter: 500
+
   # Jaeger — receives traces via OTLP/gRPC
   jaeger:
     enabled: false
@@ -145,7 +155,6 @@ instrumentation:
 
   python:
     # Init-container image that copies the Python OTel SDK into the app pod.
-    # Check for newer releases: https://github.com/open-telemetry/opentelemetry-operator/releases
     image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.60b1"
     resourceRequirements:
       # This container runs once at pod start to copy files — keep it light.

@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: gintaku98/k8s_fastapi
-  tag: 95c2855b3c14a70bd2d5f1280d2b8414ae3e4c01
+  tag: 17122fa00c387d9623d5f7f6f5b9921d9f02a14b
   pullPolicy: IfNotPresent
 
 nameOverride: ""
