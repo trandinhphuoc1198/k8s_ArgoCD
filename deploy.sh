@@ -107,7 +107,7 @@ if [[ "$SKIP_OTEL" != "true" ]]; then
     --timeout 5m
 
   echo "Waiting for OTel Operator webhook to become ready…"
-  kubectl rollout status deployment/opentelemetry-operator-controller-manager \
+  kubectl rollout status deployment/opentelemetry-operator \
     -n "$OTEL_NAMESPACE" --timeout=120s
 
   # Hardening 1: Allow time for the webhook's TLS certificates to populate.
