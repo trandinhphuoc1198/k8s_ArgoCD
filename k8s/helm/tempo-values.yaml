@@ -74,6 +74,13 @@ distributor:
     maxReplicas: 3
     targetCPUUtilizationPercentage: 60
 
+  service:
+    additionalPorts:
+      - name: otlp-grpc
+        port: 4317
+        targetPort: 4317
+        protocol: TCP
+
   resources:
     requests:
       cpu: 100m
@@ -205,6 +212,13 @@ tempo:
         ring:
           replication_factor: 2
 
+    distributor:
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+
     querier:
       frontend_worker:
         frontend_address: "tempo-query-frontend:9095"
@@ -221,13 +235,6 @@ tempo:
           insecure: false
         blocklist_poll: 5m
 
-    
-      distributor:
-            receivers:
-              otlp:
-                protocols:
-                  grpc:
-                    endpoint: 0.0.0.0:4317
 
 # ---------------------------------------------------------------------------
 # ServiceMonitor — scraped by kube-prometheus-stack Prometheus
