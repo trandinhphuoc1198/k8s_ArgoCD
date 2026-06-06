@@ -3,11 +3,17 @@
 # Aggregator Collector (Deployment mode)
 #
 # Fan-in point: receives from all node-level DaemonSet collectors, applies
-# tail-sampling, then exports to Jaeger / Prometheus / Tempo / external OTLP.
+# tail-sampling on traces, then exports to backends.
+#
+# Signal routing:
+#   traces  → tail_sampling → Tempo (+ Jaeger if enabled)
+#   metrics → Prometheus remote-write
+#   logs    → Loki (when enabled) — with trace_id/span_id attributes preserved
+#             for click-through correlation in Grafana Explore
 #
 # IMPORTANT — tail_sampling + multiple replicas:
-#   The DaemonSet uses a loadbalancing exporter (routing_key: traceID) so all
-#   spans of a trace always arrive at the same aggregator replica. Without this,
+#   The DaemonSet uses loadbalancing/traces (routing_key: traceID) so all
+#   spans of a trace always land on the same aggregator replica. Without this,
 #   tail_sampling evaluates incomplete traces and makes wrong decisions.
 # ─────────────────────────────────────────────────────────────────────────────
 {{- if .Values.collectorDeployment.enabled }}
@@ -31,11 +37,6 @@ spec:
     - name: otlp-grpc
       port: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
       protocol: TCP
-    # Expose OTLP/HTTP port so your Gunicorn/Uvicorn workers can push traces via http/protobuf
-    # - name: otlp-http
-    #   port: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
-    #   protocol: TCP
-    #   hostPort: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
     - name: metrics
       port: 8888
       protocol: TCP
@@ -60,63 +61,65 @@ spec:
         limit_percentage: 80
         spike_limit_percentage: 20
 
-      # ── Tail-based sampling ───────────────────────────────────────────────
+      # ── Tail-based sampling (traces only) ─────────────────────────────────
       # Buffers all spans for a trace until decision_wait expires, then
       # evaluates policies against the COMPLETE trace.
-      #
       # Policy evaluation: a trace is KEPT if ANY policy matches.
-      # Policies are evaluated independently — there is no "else" chain.
-      # This is correct here because:
-      #   - errors-policy  → keep 100 % (overrides nothing, just keeps)
-      #   - slow-policy    → keep 100 % (same)
-      #   - default-policy → keep 10 %  (fires on ALL traces including errors/slow,
-      #                      but those are already kept so the outcome is identical)
-      #
       tail_sampling:
         decision_wait: {{ .Values.collectorDeployment.tailSampling.decisionWait }}
         num_traces: {{ .Values.collectorDeployment.tailSampling.numTraces }}
         expected_new_traces_per_sec: {{ .Values.collectorDeployment.tailSampling.expectedTracesPerSec }}
         policies:
           {{- if .Values.collectorDeployment.tailSampling.errors.enabled }}
-          # Keep every trace that contains at least one ERROR span.
-          # Catches: 5xx HTTP responses, unhandled exceptions, gRPC non-OK codes.
           - name: errors-policy
             type: status_code
             status_code:
               status_codes: [ERROR]
           {{- end }}
           {{- if .Values.collectorDeployment.tailSampling.slow.enabled }}
-          # Keep every trace whose root span duration exceeds the SLO threshold.
-          # Catches: slow DB queries, downstream timeouts, GC pauses.
           - name: slow-policy
             type: latency
             latency:
               threshold_ms: {{ .Values.collectorDeployment.tailSampling.slow.thresholdMs }}
           {{- end }}
-          # Probabilistic fallback — keep N % of all remaining traces.
-          # Also evaluates on error/slow traces but they are already kept above,
-          # so the effective drop rate for those is 0 % regardless.
           - name: default-policy
             type: probabilistic
             probabilistic:
               sampling_percentage: {{ .Values.collectorDeployment.tailSampling.default.samplingPercentage }}
 
-      # Redact sensitive fields before export
+      # ── Sensitive field redaction ─────────────────────────────────────────
+      # Applied to traces before export. Logs are not redacted here — the
+      # application should never log raw credentials in the first place.
       attributes/redact:
         actions:
           - key: http.request.header.authorization
             action: delete
           - key: db.statement
             action: hash
-      # Add the transform processor for regex string replacements
+
+      # transform/redact handles regex replacements that attributes/redact
+      # cannot express (pattern matching on values, not just key names).
       transform/redact:
         error_mode: ignore
         trace_statements:
           - context: span
             statements:
-              # $1 retains the matched parameter name (e.g., "token"), replacing the value
-              # Result: "http://api.com?token=123" -> "http://api.com?token=REDACTED"
-              - replace_pattern(attributes["http.url"], "(password|token|secret|key)=[^&]*", "$$1=REDACTED")
+              # Scrub sensitive query params from URLs.
+              # $1 retains the param name, replacing only the value.
+              # "http://api.com?token=abc" → "http://api.com?token=REDACTED"
+              - replace_pattern(attributes["http.url"], "(?i)(password|token|secret|key)=[^&]*", "$$1=REDACTED")
+
+      # ── Log enrichment ────────────────────────────────────────────────────
+      # Promote trace_id and span_id from log body attributes (set by
+      # OTEL_PYTHON_LOG_CORRELATION=true) to log record attributes so Loki
+      # can index them and Grafana can render the trace link.
+      transform/logs:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            statements:
+              # Normalise severity text for consistent Loki label values
+              - set(severity_text, ConvertCase(severity_text, "upper")) where severity_text != ""
 
       resource/env:
         attributes:
@@ -124,10 +127,8 @@ spec:
             value: {{ .Values.instrumentation.resourceAttributes | dig "deployment.environment" "production" | quote }}
             action: upsert
 
-      # batch runs AFTER tail_sampling in the pipeline, so its timeout has no
-      # effect on sampling decisions — tail_sampling manages its own in-memory
-      # buffering independently. This timeout simply controls how long to
-      # accumulate already-sampled spans before flushing to the exporters.
+      # batch runs AFTER tail_sampling — its timeout only controls export
+      # flush frequency, not sampling decisions.
       batch:
         send_batch_size: {{ .Values.collectorDeployment.batch.sendBatchSize }}
         send_batch_max_size: {{ .Values.collectorDeployment.batch.sendBatchMaxSize }}
@@ -156,14 +157,14 @@ spec:
       {{- end }}
 
       {{- if .Values.backends.tempo.enabled }}
-      # ── Grafana Tempo ──────────────────────────────────────────────────────
+      # ── Grafana Tempo — traces ─────────────────────────────────────────────
       otlp/tempo:
         endpoint: {{ .Values.backends.tempo.endpoint | quote }}
         tls:
           insecure: true
         compression: gzip
         keepalive:
-          time: 60s
+          time: 30s
           timeout: 10s
           permit_without_stream: true
         sending_queue:
@@ -175,7 +176,7 @@ spec:
       {{- end }}
 
       {{- if .Values.backends.prometheus.enabled }}
-      # ── Prometheus remote-write ────────────────────────────────────────────
+      # ── Prometheus remote-write — metrics ─────────────────────────────────
       prometheusremotewrite:
         endpoint: {{ .Values.backends.prometheus.endpoint | quote }}
         tls:
@@ -184,6 +185,45 @@ spec:
           enabled: true
         retry_on_failure:
           enabled: true
+      {{- end }}
+
+      {{- if .Values.backends.loki.enabled }}
+      # ── Grafana Loki — logs ────────────────────────────────────────────────
+      # The loki exporter maps OTel resource/log attributes to Loki labels and
+      # log line fields. trace_id and span_id are preserved as structured
+      # metadata so Grafana can render "Jump to trace" links from log lines.
+      loki:
+        endpoint: {{ .Values.backends.loki.endpoint | quote }}
+        default_labels_enabled:
+          exporter: false   # don't add an "exporter" label — noise in Loki
+          job: true         # maps to k8s.namespace.name/k8s.pod.name
+          instance: true
+          level: true       # severity_text → Loki "level" label
+        # Promote these OTel resource attributes to Loki stream labels.
+        # Keep the cardinality low — high-cardinality labels degrade Loki.
+        labels:
+          resource:
+            k8s.namespace.name: "namespace"
+            k8s.pod.name: "pod"
+            k8s.container.name: "container"
+            k8s.deployment.name: "deployment"
+            service.name: "service"
+            deployment.environment: "env"
+          # Promote trace_id / span_id to structured metadata (not labels).
+          # Structured metadata has no cardinality cost and is queryable in
+          # LogQL: {service="fastapi-app"} | trace_id = "abc123"
+          attributes:
+            trace_id: ""       # empty string = use attribute name as-is
+            span_id: ""
+            severity_text: "level"
+        sending_queue:
+          enabled: true
+          num_consumers: 5
+          queue_size: 1000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
       {{- end }}
 
       {{- if .Values.backends.otlpExternal.enabled }}
@@ -205,7 +245,6 @@ spec:
           queue_size: 5000
       {{- end }}
 
-      # ── Dynamic Debug Exporter ─────────────────────────────────────────────
       {{- if .Values.backends.debug.enabled }}
       debug:
         verbosity: {{ .Values.backends.debug.verbosity }}
@@ -224,6 +263,7 @@ spec:
     service:
       extensions: [health_check, pprof, zpages]
       pipelines:
+        # ── Traces ───────────────────────────────────────────────────────────
         traces:
           receivers:  [otlp]
           processors: [memory_limiter, tail_sampling, attributes/redact, transform/redact, resource/env, batch]
@@ -241,11 +281,14 @@ spec:
             - otlp/external
             {{- end }}
 
+        # ── Metrics ──────────────────────────────────────────────────────────
         metrics:
           receivers:  [otlp]
           processors: [memory_limiter, resource/env, batch]
           exporters:
+            {{- if .Values.backends.debug.enabled }}
             - debug
+            {{- end }}
             {{- if .Values.backends.prometheus.enabled }}
             - prometheusremotewrite
             {{- end }}
@@ -253,11 +296,21 @@ spec:
             - otlp/external
             {{- end }}
 
+        # ── Logs ─────────────────────────────────────────────────────────────
+        # Receives:
+        #   - SDK-emitted logs (OTEL_LOGS_EXPORTER=otlp) via OTLP from DaemonSet
+        #   - Container stdout/stderr (filelog receiver) from DaemonSet
+        # Both sources already carry trace_id/span_id when log correlation is on.
         logs:
           receivers:  [otlp]
-          processors: [memory_limiter, resource/env, batch]
+          processors: [memory_limiter, transform/logs, resource/env, batch]
           exporters:
+            {{- if .Values.backends.debug.enabled }}
             - debug
+            {{- end }}
+            {{- if .Values.backends.loki.enabled }}
+            - loki
+            {{- end }}
             {{- if .Values.backends.otlpExternal.enabled }}
             - otlp/external
             {{- end }}

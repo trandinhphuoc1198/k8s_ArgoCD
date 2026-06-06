@@ -2,9 +2,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Node-level DaemonSet Collector
 #
-# Receives OTLP/gRPC and OTLP/HTTP from every pod on the node, enriches spans with 
-# k8s metadata, filters health-check noise, then routes to the aggregator using a
-# loadbalancing exporter keyed by traceID.
+# Receives OTLP/gRPC and OTLP/HTTP from every pod on the node.
+# Also tails container log files from the node filesystem (filelog receiver),
+# parses JSON logs, and correlates them with traces via trace_id / span_id.
 #
 # The traceID-based load balancing is REQUIRED when the aggregator runs as a
 # multi-replica Deployment with tail_sampling: all spans of a trace must land
@@ -32,7 +32,6 @@ spec:
       port: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
       protocol: TCP
       hostPort: {{ .Values.collectorDaemonSet.ports.otlpGrpc }}
-    # Expose OTLP/HTTP port so your Gunicorn/Uvicorn workers can push traces via http/protobuf
     - name: otlp-http
       port: {{ .Values.collectorDaemonSet.ports.otlpHttp }}
       protocol: TCP
@@ -40,6 +39,26 @@ spec:
     - name: metrics
       port: 8888
       protocol: TCP
+
+  # ── Host volume mounts ────────────────────────────────────────────────────
+  # The filelog receiver reads container stdout/stderr from the node filesystem.
+  # /var/log/pods  — Kubernetes writes container logs here, symlinked from /var/log/containers
+  # /var/lib/docker/containers — needed on Docker runtimes for full log metadata
+  volumeMounts:
+    - name: varlogpods
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: varlibdockercontainers
+      mountPath: /var/lib/docker/containers
+      readOnly: true
+
+  volumes:
+    - name: varlogpods
+      hostPath:
+        path: /var/log/pods
+    - name: varlibdockercontainers
+      hostPath:
+        path: /var/lib/docker/containers
 
   env:
     - name: MY_NODE_NAME
@@ -53,6 +72,7 @@ spec:
 
   config:
     receivers:
+      # ── OTLP receiver (traces, metrics, SDK-emitted logs) ─────────────────
       otlp:
         protocols:
           grpc:
@@ -64,9 +84,107 @@ spec:
                 time: 30s
                 timeout: 10s
             max_recv_msg_size_mib: 16
-          # Active HTTP protocol receiver mapping matching the value from your values.yaml
           http:
             endpoint: "0.0.0.0:{{ .Values.collectorDaemonSet.ports.otlpHttp }}"
+
+      # ── filelog receiver — tails container log files from the node ─────────
+      # Reads every pod's stdout/stderr from /var/log/pods/<namespace>_<pod>_<uid>/<container>/*.log
+      # Scoped to the app namespace so we don't collect noisy system/infra logs.
+      filelog:
+        # Glob pattern — restrict to your app namespace to avoid noise.
+        # Change {{ .Values.collectorDaemonSet.filelog.namespaceFilter }} to your
+        # app namespace, or use "*" to collect from all namespaces.
+        include:
+          - /var/log/pods/{{ .Values.collectorDaemonSet.filelog.namespaceFilter }}_*/*/*.log
+        exclude:
+          # Never tail the collector's own logs — infinite loop risk
+          - /var/log/pods/{{ .Values.global.namespace }}_*/*/*.log
+        start_at: end       # "end" = only new lines after collector start; "beginning" = backfill
+        include_file_path: true
+        include_file_name: false
+
+        # ── Kubernetes metadata from file path ────────────────────────────────
+        # Path format: /var/log/pods/<namespace>_<pod-name>_<pod-uid>/<container>/<n>.log
+        # The operators below parse this path into resource attributes.
+        operators:
+          # Step 1: tag log source type
+          - type: add
+            field: resource["log.source"]
+            value: "filelog"
+
+          # Step 2: parse namespace / pod-name / pod-uid from the file path
+          - type: regex_parser
+            id: parse_filepath
+            regex: '^/var/log/pods/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<pod_uid>[^/]+)/(?P<container>[^/]+)/.*$'
+            parse_from: attributes["log.file.path"]
+            on_error: send
+
+          # Step 3: promote parsed fields to resource attributes
+          - type: move
+            from: attributes.namespace
+            to: resource["k8s.namespace.name"]
+          - type: move
+            from: attributes.pod_name
+            to: resource["k8s.pod.name"]
+          - type: move
+            from: attributes.pod_uid
+            to: resource["k8s.pod.uid"]
+          - type: move
+            from: attributes.container
+            to: resource["k8s.container.name"]
+
+          # Step 4: parse the outer Docker/containerd JSON wrapper
+          # Kubernetes wraps each log line in {"log":"...","stream":"stdout","time":"..."}
+          - type: json_parser
+            id: parse_docker_wrapper
+            parse_from: body
+            on_error: send_quiet   # silently drop lines that aren't JSON-wrapped
+
+          # Step 5: unwrap — the actual log content is in the "log" field
+          - type: move
+            from: attributes.log
+            to: body
+
+          # Step 6: try to parse the body as your app's JSON log format.
+          # Expected fields from Python structlog / python-json-logger:
+          #   {"timestamp":"...","level":"INFO","message":"...","trace_id":"...","span_id":"...","service":"..."}
+          - type: json_parser
+            id: parse_app_json
+            parse_from: body
+            on_error: send_quiet   # plain-text logs (e.g. startup lines) are forwarded as-is
+
+          # Step 7: promote trace correlation fields to log record attributes
+          # These are set by OTEL_PYTHON_LOG_CORRELATION=true in the Instrumentation CR.
+          - type: move
+            from: attributes.trace_id
+            to: attributes["trace_id"]
+            if: 'attributes.trace_id != nil'
+          - type: move
+            from: attributes.span_id
+            to: attributes["span_id"]
+            if: 'attributes.span_id != nil'
+          - type: move
+            from: attributes.trace_flags
+            to: attributes["trace_flags"]
+            if: 'attributes.trace_flags != nil'
+
+          # Step 8: map Python log level string → OTel SeverityNumber
+          - type: severity_parser
+            parse_from: attributes.level
+            on_error: send_quiet
+            mapping:
+              debug:    DEBUG
+              info:     INFO
+              warning:  WARN
+              error:    ERROR
+              critical: FATAL
+
+          # Step 9: parse the app timestamp if present
+          - type: time_parser
+            parse_from: attributes.timestamp
+            layout_type: strptime
+            layout: '%Y-%m-%dT%H:%M:%S.%fZ'
+            on_error: send_quiet
 
     processors:
       memory_limiter:
@@ -74,7 +192,7 @@ spec:
         limit_percentage: 75
         spike_limit_percentage: 15
 
-      # Enrich every span with k8s metadata (pod, namespace, node, deployment…)
+      # Enrich every signal with k8s metadata (pod, namespace, node, deployment…)
       k8sattributes:
         auth_type: serviceAccount
         passthrough: false
@@ -109,8 +227,6 @@ spec:
           - sources:
               - from: connection
 
-      # Stamp the collector type — k8sattributes already sets k8s.node.name
-      # from pod metadata so we only add the collector.type marker here.
       resource:
         attributes:
           - key: collector.type
@@ -118,8 +234,6 @@ spec:
             action: insert
 
       # Drop health-check and metrics-scrape spans before forwarding.
-      # Both old (http.target) and new (url.path) semconv attribute names are
-      # checked for compatibility across SDK versions.
       filter/health:
         error_mode: ignore
         traces:
@@ -133,19 +247,15 @@ spec:
             - 'attributes["url.path"] == "/readyz"'
             - 'attributes["url.path"] == "/metrics"'
 
-      # The DaemonSet batch timeout must be significantly less than the
-      # aggregator's tail_sampling.decision_wait (10s). Spans need to arrive
-      # at the aggregator well before the decision window closes so the sampler
-      # sees a complete trace. 2s here gives an 8s margin before the 10s window.
+      # DaemonSet batch timeout (2s) << Aggregator decision_wait (10s).
+      # Spans must arrive at the aggregator before its 10s decision window closes.
       batch:
         send_batch_size: 512
         send_batch_max_size: 1024
         timeout: 2s
 
     exporters:
-      # ── 1. Trace Exporter ─────────────────────────────────────────────────
-      # Routes all spans of the same trace to the same aggregator replica.
-      # Mandatory for correct tail-sampling decisions.
+      # ── Traces — routed by traceID so tail_sampling sees complete traces ───
       loadbalancing/traces:
         routing_key: traceID
         protocol:
@@ -171,8 +281,7 @@ spec:
             hostname: "{{ include "otel.collectorAgg.name" . }}-collector-headless.{{ .Values.global.namespace }}.svc.cluster.local"
             port: 4317
 
-      # ── 2. Metrics & Logs Exporter ────────────────────────────────────────
-      # Routes metrics and logs by service name, as they lack trace IDs.
+      # ── Metrics & Logs — routed by service name (no traceID on these) ─────
       loadbalancing/metrics_logs:
         routing_key: service
         protocol:
@@ -198,7 +307,6 @@ spec:
             hostname: "{{ include "otel.collectorAgg.name" . }}-collector-headless.{{ .Values.global.namespace }}.svc.cluster.local"
             port: 4317
 
-      # ── Dynamic Debug Exporter ─────────────────────────────────────────────
       {{- if .Values.backends.debug.enabled }}
       debug:
         verbosity: {{ .Values.backends.debug.verbosity }}
@@ -220,19 +328,25 @@ spec:
         traces:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, filter/health, batch]
-          exporters:  
+          exporters:
             - loadbalancing/traces
             {{- if .Values.backends.debug.enabled }}
             - debug
             {{- end }}
+
         metrics:
           receivers:  [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]
-          exporters:  [loadbalancing/metrics_logs]  # <-- Uses service
+          exporters:  [loadbalancing/metrics_logs]
+
         logs:
-          receivers:  [otlp]
+          receivers:  [otlp, filelog]   # OTLP = SDK-emitted logs; filelog = stdout/stderr from /var/log/pods
           processors: [memory_limiter, k8sattributes, resource, batch]
-          exporters:  [loadbalancing/metrics_logs]  # <-- Uses service
+          exporters:
+            - loadbalancing/metrics_logs
+            {{- if .Values.backends.debug.enabled }}
+            - debug
+            {{- end }}
 
       telemetry:
         logs:

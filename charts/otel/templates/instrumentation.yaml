@@ -21,6 +21,13 @@ metadata:
   labels:
     {{- include "otel.labels" . | nindent 4 }}
 spec:
+  # ── Exporter ─────────────────────────────────────────────────────────────
+  # Points the SDK at the node-local DaemonSet Collector over HTTP (port 4318).
+  # HTTP/protobuf is used instead of gRPC to avoid fork-safety issues in
+  # master-worker runtimes like Gunicorn — gRPC uses background threads that
+  # don't survive fork() cleanly.
+  exporter:
+    endpoint: http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpHttp }}
 
   # ── Propagators ──────────────────────────────────────────────────────────
   propagators:
@@ -43,29 +50,32 @@ spec:
     resourceRequirements:
       {{- toYaml .Values.instrumentation.python.resourceRequirements | nindent 6 }}
     env:
-      # ── Exporters ─────────────────────────────────────────────────────────
+      # ── Downward API — HOST_IP for the exporter endpoint ──────────────────
+      # The operator resolves this at pod admission time via the downward API.
       - name: HOST_IP
         valueFrom:
           fieldRef:
             fieldPath: status.hostIP
-      
-      # Switched to use HTTP port (4318) instead of gRPC (4317)
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: "http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpHttp }}"
+
+      # ── Exporters ─────────────────────────────────────────────────────────
       - name: OTEL_TRACES_EXPORTER
         value: otlp
       - name: OTEL_METRICS_EXPORTER
-        value: "none" 
+        value: none         # metrics collected at node level; avoid double-counting
       - name: OTEL_LOGS_EXPORTER
-        value: "none" 
+        value: otlp         # SDK-emitted logs → DaemonSet → aggregator → Loki/Tempo
 
-      # HTTP/protobuf protocol — avoids fork-safety issues with master-worker setups (Gunicorn)
+      # HTTP/protobuf — fork-safe for Gunicorn/Uvicorn master-worker processes.
+      # gRPC background threads don't survive fork() cleanly.
       - name: OTEL_EXPORTER_OTLP_PROTOCOL
         value: http/protobuf
       - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
         value: http/protobuf
 
-      # ── Logging correlation ───────────────────────────────────────────────
+      # ── Log correlation ───────────────────────────────────────────────────
+      # Injects trace_id, span_id, and trace_flags into every Python log record.
+      # These fields are also parsed by the filelog receiver in the DaemonSet
+      # so stdout/stderr JSON logs are correlated with traces in Grafana.
       - name: OTEL_PYTHON_LOG_CORRELATION
         value: "true"
       - name: OTEL_PYTHON_LOG_LEVEL
@@ -81,8 +91,12 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
 
-  # ── Resource attributes added by the operator to every span ──────────────
+  # ── Resource attributes ───────────────────────────────────────────────────
+  # The operator formats and injects these as OTEL_RESOURCE_ATTRIBUTES safely —
+  # no risk of the multi-line space bug that affects manual env var declarations.
   resource:
     resourceAttributes:
-      # The operator will safely format these and inject them as OTEL_RESOURCE_ATTRIBUTES
-      {{- toYaml .Values.instrumentation.resourceAttributes | nindent 6 }}
+      {{- range $k, $v := .Values.instrumentation.resourceAttributes }}
+      - key: {{ $k }}
+        value: {{ $v | quote }}
+      {{- end }}

@@ -9,13 +9,13 @@ global:
   # Namespace where the OTel stack lives (must match --namespace on helm install)
   namespace: observability
   # Namespace where kube-prometheus-stack Grafana is running.
-  # Used by the Tempo datasource ConfigMap so Grafana's sidecar can discover it.
+  # Used by Tempo/Loki datasource ConfigMaps so Grafana's sidecar can discover them.
   monitoringNamespace: monitoring
 
 # ---------------------------------------------------------------------------
 # Collector — Node-level DaemonSet
-# Receives telemetry from every pod on the node, enriches with k8s metadata,
-# then forwards to the aggregator Deployment.
+# Receives OTLP telemetry from pods on the node AND tails container log files
+# from /var/log/pods, parses JSON, extracts trace_id/span_id for correlation.
 # ---------------------------------------------------------------------------
 collectorDaemonSet:
   enabled: true
@@ -29,12 +29,21 @@ collectorDaemonSet:
       cpu: 100m
       memory: 100Mi
 
-  # Protocols enabled on the DaemonSet. HTTP (4318) is required for 
-  # fork-safe Python runtimes (Gunicorn/Uvicorn), while gRPC (4317) is retained 
-  # for other cluster services.
+  # Both protocols enabled:
+  #   gRPC (4317) — used by other cluster services
+  #   HTTP (4318) — required for fork-safe Python runtimes (Gunicorn/Uvicorn)
   ports:
     otlpGrpc: 4317
     otlpHttp: 4318
+
+  # ---------------------------------------------------------------------------
+  # filelog receiver config
+  # ---------------------------------------------------------------------------
+  filelog:
+    # Restrict log collection to your app namespace.
+    # Change to "*" to collect from all namespaces (more noise).
+    # Must match APP_NAMESPACE in deploy.sh (default: fastapi)
+    namespaceFilter: "fastapi"
 
 # ---------------------------------------------------------------------------
 # Collector — Aggregator Deployment
@@ -55,48 +64,32 @@ collectorDeployment:
       memory: 200Mi
 
   # ---------------------------------------------------------------------------
-  # Tail-sampling — all knobs in one place, referenced by the collector template.
-  #
-  # How it works:
-  #   All spans for a trace are buffered in memory until decisionWait expires.
-  #   Policies are then evaluated against the COMPLETE trace. A trace is kept
-  #   if ANY policy matches; otherwise it is dropped.
+  # Tail-sampling
   #
   # The real timing constraint is on the DaemonSet collector:
   #   DaemonSet batch.timeout (2s) << Aggregator decisionWait (10s)
-  #   Spans must arrive at the aggregator well before the decision window closes.
-  #   The aggregator's own batch processor runs AFTER tail_sampling in the
-  #   pipeline, so its timeout has no effect on sampling decisions at all.
+  #   Spans must arrive at the aggregator before the decision window closes.
+  #   The aggregator batch runs AFTER tail_sampling so its timeout has no
+  #   effect on sampling decisions at all.
   # ---------------------------------------------------------------------------
   tailSampling:
-    # How long to buffer all spans for a trace before deciding keep/drop.
     decisionWait: 10s
-
-    # In-memory trace buffer slots. Each slot = one complete trace (all spans).
-    # Formula: expectedTracesPerSec * decisionWait seconds * 2 (burst headroom)
-    # At 500 RPS, 10 s window: 500 * 10 * 2 = 10 000.
-    # Raise if you see "dropping trace" in collector logs.
+    # Formula: expectedTracesPerSec * decisionWait * 2 (burst headroom)
+    # 500 * 10 * 2 = 10 000
     numTraces: 10000
-
-    # Pre-allocation hint — set to your expected steady-state RPS.
     expectedTracesPerSec: 500
 
-    # Sub-policy 1: always keep traces that contain at least one ERROR span
     errors:
       enabled: true
 
-    # Sub-policy 2: always keep traces whose root span exceeds this duration
     slow:
       enabled: true
-      thresholdMs: 2000     # 2 seconds — tune to your SLO
+      thresholdMs: 2000
 
-    # Sub-policy 3: probabilistic fallback for all remaining traces
     default:
-      samplingPercentage: 10  # keep 10 % of normal, non-error, non-slow traces
+      samplingPercentage: 10
 
-  # Aggregator batch processor — runs after tail_sampling so its timeout only
-  # controls how long to accumulate already-sampled spans before flushing to
-  # exporters. No relationship to decisionWait — tune for export throughput.
+  # Aggregator batch — runs after tail_sampling, no effect on sampling decisions.
   batch:
     sendBatchSize: 1024
     sendBatchMaxSize: 2048
@@ -104,10 +97,9 @@ collectorDeployment:
 
 # ---------------------------------------------------------------------------
 # Backends
-# Set enabled: true for every backend you actually have.
 # ---------------------------------------------------------------------------
 backends:
-  # Console / Standard Out Debug Exporter
+  # Console / stdout debug exporter — turn off in production
   debug:
     enabled: true
     verbosity: detailed
@@ -120,36 +112,36 @@ backends:
     endpoint: "jaeger-collector.observability.svc.cluster.local:4317"
 
   # Prometheus remote-write — receives metrics from the aggregator
-  # Namespace should match MONITORING_NAMESPACE in deploy.sh (default: monitoring)
   prometheus:
     enabled: false
     endpoint: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
 
-  # Grafana Tempo — alternative / additional trace backend
+  # Grafana Tempo — traces backend
+  # Always send to the distributor — never directly to ingesters.
   tempo:
     enabled: true
     endpoint: "tempo-distributor.observability.svc.cluster.local:4317"
 
-  # Generic OTLP endpoint (e.g. Grafana Cloud, Honeycomb, Lightstep, Datadog)
+  # Grafana Loki — logs backend
+  # Receives logs from the aggregator via the loki exporter.
+  # Set enabled: true once Loki is deployed (see k8s/helm/loki-values.yaml).
+  loki:
+    enabled: false
+    endpoint: "http://loki-gateway.observability.svc.cluster.local:3100/loki/api/v1/push"
+
+  # Generic OTLP endpoint (e.g. Grafana Cloud, Honeycomb, Datadog)
   otlpExternal:
     enabled: false
     endpoint: "https://otlp.example.com:4317"
     tls:
       insecure: false
     headers: {}
-    #  x-honeycomb-team: "YOUR_API_KEY"
-    #  x-datadog-api-key: "YOUR_API_KEY"
 
 # ---------------------------------------------------------------------------
-# Instrumentation CR  (auto-instrumentation injection)
+# Instrumentation CR
 #
-# The OTel Operator injects these settings as env vars into any pod annotated
-# with: instrumentation.opentelemetry.io/inject-python: "observability/fastapi-instrumentation"
-# No env vars need to be set manually in the application deployment.
-#
-# samplingRatio is intentionally 1.0 (100 % head sampling) so that all traces
-# reach the aggregator and tail-sampling can make a fully-informed decision.
-# Head-sampling here would blindly drop spans before errors/latency are known.
+# samplingRatio is intentionally 1.0 so ALL spans reach the aggregator.
+# Tail sampling in the aggregator makes the real keep/drop decision.
 # ---------------------------------------------------------------------------
 instrumentation:
   name: fastapi-instrumentation
@@ -157,10 +149,8 @@ instrumentation:
   samplingRatio: "1.0"
 
   python:
-    # Init-container image that copies the Python OTel SDK into the app pod.
     image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.60b1"
     resourceRequirements:
-      # This container runs once at pod start to copy files — keep it light.
       limits:
         cpu: 100m
         memory: 128Mi
@@ -168,29 +158,22 @@ instrumentation:
         cpu: 50m
         memory: 64Mi
 
-  # Extra env vars injected into instrumented pods alongside the SDK vars.
-  # Use sparingly — the operator already sets all standard OTEL_* vars.
+  # Extra env vars injected alongside the SDK vars. Use sparingly.
   env: []
-  # - name: OTEL_LOG_LEVEL
-  #   value: debug
-  # - name: OTEL_PYTHON_DISABLED_INSTRUMENTATIONS
-  #   value: "aws_lambda"
 
-  # Resource attributes attached to every span, metric, and log record.
-  # These appear as top-level fields in Jaeger / Grafana / Tempo.
+  # Resource attributes on every span, metric, and log record.
   resourceAttributes:
     deployment.environment: production
     service.namespace: fastapi
 
 
 # ---------------------------------------------------------------------------
-# ServiceMonitor — scrapes the aggregator Collector's own /metrics endpoint
-# so you can alert on dropped spans, queue depth, export errors, etc.
-# Requires kube-prometheus-stack CRDs to be installed.
+# ServiceMonitor — scrapes the aggregator Collector /metrics endpoint.
+# Requires kube-prometheus-stack CRDs.
 # ---------------------------------------------------------------------------
 serviceMonitor:
   enabled: true
   interval: "30s"
   scrapeTimeout: "10s"
   labels:
-    release: kube-prometheus-stack   # must match Prometheus operator labelSelector
+    release: kube-prometheus-stack
