@@ -94,9 +94,7 @@ spec:
   # ── Resource attributes ───────────────────────────────────────────────────
   # The operator formats and injects these as OTEL_RESOURCE_ATTRIBUTES safely —
   # no risk of the multi-line space bug that affects manual env var declarations.
+  # resourceAttributes must be a plain key:value map — NOT a list of objects.
   resource:
     resourceAttributes:
-      {{- range $k, $v := .Values.instrumentation.resourceAttributes }}
-      - key: {{ $k }}
-        value: {{ $v | quote }}
-      {{- end }}
+      {{- toYaml .Values.instrumentation.resourceAttributes | nindent 6 }}
