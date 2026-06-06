@@ -43,32 +43,21 @@ spec:
   # ── Host volume mounts ────────────────────────────────────────────────────
   # The filelog receiver reads container stdout/stderr from the node filesystem.
   # /var/log/pods  — Kubernetes writes container logs here, symlinked from /var/log/containers
-  # /var/lib/docker/containers — needed on Docker runtimes for full log metadata
   volumeMounts:
     - name: varlogpods
       mountPath: /var/log/pods
-      readOnly: true
-    - name: varlibdockercontainers
-      mountPath: /var/lib/docker/containers
       readOnly: true
 
   volumes:
     - name: varlogpods
       hostPath:
         path: /var/log/pods
-    - name: varlibdockercontainers
-      hostPath:
-        path: /var/lib/docker/containers
 
   env:
     - name: MY_NODE_NAME
       valueFrom:
         fieldRef:
           fieldPath: spec.nodeName
-    - name: MY_POD_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.podIP
 
   config:
     receivers:
@@ -134,46 +123,13 @@ spec:
             to: resource["k8s.container.name"]
 
           # ── Step 4: Runtime detection + body unwrap ──────────────────────────
-          # Self-hosted K8S on EC2 uses containerd, not Docker.
-          # The log line format differs between the two runtimes:
-          #
-          #   Docker (dockershim):
-          #     Body is a JSON string:
-          #     {"log":"<actual line>\n","stream":"stdout","time":"<ts>"}
-          #     → parse JSON, then move attributes.log → body
-          #
+          
           #   Containerd (CRI / self-hosted K8S default):
           #     Body is a plain text line with a header prefix:
           #     <timestamp> <stream> <flags> <actual line>
           #     e.g. 2026-06-06T11:14:46.347Z stdout F {"message":"..."}
           #     → strip the CRI header via regex, body becomes the actual line
-          #
-          # A router branches on the body content so both runtimes work.
-          - type: router
-            id: runtime_router
-            routes:
-              # Docker: body starts with { and contains a "log" key
-              - output: parse_docker_wrapper
-                expr: 'body matches "^\\{.*\"log\":"'
-              # Containerd: body matches the CRI log format header
-              - output: parse_containerd_header
-                expr: 'body matches "^\\d{4}-\\d{2}-\\d{2}T"'
-            default: parse_app_json   # already unwrapped or unknown format
 
-          # ── Docker path ───────────────────────────────────────────────────
-          - type: json_parser
-            id: parse_docker_wrapper
-            parse_from: body
-            on_error: send_quiet
-            output: unwrap_docker_log
-
-          - type: move
-            id: unwrap_docker_log
-            from: attributes.log
-            to: body
-            output: parse_app_json
-
-          # ── Containerd path ───────────────────────────────────────────────
           # CRI format: "<timestamp> <stream> <flags> <body>"
           # flags: "F" = full line, "P" = partial (multiline, rare)
           - type: regex_parser
@@ -203,13 +159,13 @@ spec:
           # when OTEL_PYTHON_LOG_CORRELATION=true. Moving them to named
           # attributes lets the Loki exporter index them as structured metadata.
           - type: move
-            from: attributes.trace_id
+            from: attributes.otelTraceID
             to: attributes["trace_id"]
-            if: 'attributes.trace_id != nil'
+            if: 'attributes.otelTraceID != nil'
           - type: move
-            from: attributes.span_id
+            from: attributes.otelSpanID
             to: attributes["span_id"]
-            if: 'attributes.span_id != nil'
+            if: 'attributes.otelSpanID != nil'
           - type: move
             from: attributes.trace_flags
             to: attributes["trace_flags"]
