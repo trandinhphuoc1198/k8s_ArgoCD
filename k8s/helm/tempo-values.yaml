@@ -29,15 +29,6 @@ global:
   clusterDomain: cluster.local
 
 # ---------------------------------------------------------------------------
-# Service Account
-# No IRSA annotation — credentials come from the Secret via envFrom.
-# ---------------------------------------------------------------------------
-serviceAccount:
-  create: true
-  name: tempo
-  annotations: {}
-
-# ---------------------------------------------------------------------------
 # Storage — S3 backend with static credentials
 #
 # Credentials are NOT set here. They are injected as env vars from the
@@ -74,12 +65,16 @@ traces:
 # Receives OTLP/gRPC from the OTel aggregator, hashes traces to ingesters.
 # ---------------------------------------------------------------------------
 distributor:
-  replicas: 2
+  replicas: 1
   autoscaling:
     enabled: true
-    minReplicas: 2
-    maxReplicas: 3
+    minReplicas: 1
+    maxReplicas: 2
     targetCPUUtilizationPercentage: 60
+  config:
+    log_received_traces: true   # for debugging — disable in production
+    log_received_spans:
+      enabled: true
 
   resources:
     requests:
@@ -202,44 +197,10 @@ memcached:
       memory: 256Mi
 
 # ---------------------------------------------------------------------------
-# Tempo structured config overrides
-# ---------------------------------------------------------------------------
-tempo:
-  structuredConfig:
-    ingester:
-      lifecycler:
-        ring:
-          replication_factor: 2
-
-    distributor:
-          receivers:
-            otlp:
-              protocols:
-                grpc:
-                  endpoint: 0.0.0.0:4317
-
-    querier:
-      frontend_worker:
-        frontend_address: "tempo-query-frontend:9095"
-
-    storage:
-      trace:
-        backend: s3
-        s3:
-          bucket: tempo-s3-phuoctd6   # TODO: must match storage.trace.s3.bucket above
-          region: ap-northeast-1
-          endpoint: s3.ap-northeast-1.amazonaws.com
-          # Credentials come from env vars — do not set access_key / secret_key here.
-          # The AWS SDK automatically reads AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY.
-          insecure: false
-        blocklist_poll: 5m
-
-
-# ---------------------------------------------------------------------------
 # ServiceMonitor — scraped by kube-prometheus-stack Prometheus
 # ---------------------------------------------------------------------------
-serviceMonitor:
-  enabled: true
-  interval: 30s
-  additionalLabels:
-    release: kube-prometheus-stack
+metaMonitoring:
+  # ServiceMonitor configuration
+  serviceMonitor:
+    # -- If enabled, ServiceMonitor resources for Prometheus Operator are created
+    enabled: true
