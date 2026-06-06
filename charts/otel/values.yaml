@@ -8,6 +8,9 @@
 global:
   # Namespace where the OTel stack lives (must match --namespace on helm install)
   namespace: observability
+  # Namespace where kube-prometheus-stack Grafana is running.
+  # Used by the Tempo datasource ConfigMap so Grafana's sidecar can discover it.
+  monitoringNamespace: monitoring
 
 # ---------------------------------------------------------------------------
 # Collector — Node-level DaemonSet
@@ -124,8 +127,8 @@ backends:
 
   # Grafana Tempo — alternative / additional trace backend
   tempo:
-    enabled: false
-    endpoint: "tempo.observability.svc.cluster.local:4317"
+    enabled: true
+    endpoint: "tempo-distributor.observability.svc.cluster.local:4317"
 
   # Generic OTLP endpoint (e.g. Grafana Cloud, Honeycomb, Lightstep, Datadog)
   otlpExternal:
@@ -178,6 +181,29 @@ instrumentation:
   resourceAttributes:
     deployment.environment: production
     service.namespace: fastapi
+
+
+# ---------------------------------------------------------------------------
+# Tempo S3 credentials (static key auth — used when not on EKS/IRSA)
+#
+# Option A — let the otel chart create the Secret (set createSecret: true):
+#   Fill accessKey / secretKey here, or pass via --set on helm upgrade.
+#   These values end up in a Kubernetes Secret — do NOT commit real keys to git.
+#   Use a secrets manager (Vault, Sealed Secrets, SOPS) for production.
+#
+# Option B — create the Secret yourself before deploying (createSecret: false):
+#   kubectl create secret generic tempo-s3-credentials \
+#     --namespace observability \
+#     --from-literal=S3_ACCESS_KEY_ID=YOUR_KEY \
+#     --from-literal=S3_SECRET_ACCESS_KEY=YOUR_SECRET
+# ---------------------------------------------------------------------------
+tempo:
+  s3:
+    # Set false if you pre-create the secret outside of Helm
+    createSecret: true
+    accessKey: "REPLACE_WITH_YOUR_ACCESS_KEY"     # override with --set or external secret
+    secretKey: "REPLACE_WITH_YOUR_SECRET_KEY"     # override with --set or external secret
+
 
 # ---------------------------------------------------------------------------
 # ServiceMonitor — scrapes the aggregator Collector's own /metrics endpoint
