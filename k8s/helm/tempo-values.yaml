@@ -52,6 +52,7 @@ storage:
       bucket: tempo-s3-phuoctd6       # TODO: replace with your bucket name
       region: ap-northeast-1               # TODO: replace with your bucket region
       insecure: false                      # keep false — S3 always uses TLS
+      endpoint: s3.ap-northeast-1.amazonaws.com
 
 # ---------------------------------------------------------------------------
 # Shared envFrom — injected into every component that touches S3.
@@ -225,6 +226,7 @@ tempo:
         s3:
           bucket: tempo-s3-phuoctd6   # TODO: must match storage.trace.s3.bucket above
           region: ap-northeast-1
+          endpoint: s3.ap-northeast-1.amazonaws.com
           # Credentials come from env vars — do not set access_key / secret_key here.
           # The AWS SDK automatically reads AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY.
           insecure: false
