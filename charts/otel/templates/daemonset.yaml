@@ -123,13 +123,11 @@ spec:
             to: resource["k8s.container.name"]
 
           # ── Step 4: Runtime detection + body unwrap ──────────────────────────
-          
           #   Containerd (CRI / self-hosted K8S default):
           #     Body is a plain text line with a header prefix:
           #     <timestamp> <stream> <flags> <actual line>
           #     e.g. 2026-06-06T11:14:46.347Z stdout F {"message":"..."}
           #     → strip the CRI header via regex, body becomes the actual line
-
           # CRI format: "<timestamp> <stream> <flags> <body>"
           # flags: "F" = full line, "P" = partial (multiline, rare)
           - type: regex_parser
@@ -154,24 +152,33 @@ spec:
             parse_from: body
             on_error: send_quiet
 
-          # ── Step 6: promote trace correlation fields ──────────────────────
-          # trace_id / span_id / trace_flags are injected by the Python SDK
-          # when OTEL_PYTHON_LOG_CORRELATION=true. Moving them to named
-          # attributes lets the Loki exporter index them as structured metadata.
+          # ── Step 6: set body to the human-readable message ──────────────────
+          # After JSON parsing body still holds the raw JSON string.
+          # Replace it with just the message field so Loki/Grafana shows
+          # a clean log line instead of the full JSON blob.
+          - type: move
+            from: attributes.message
+            to: body
+            if: 'attributes.message != nil'
+
+          # ── Step 7: trace correlation fields ─────────────────────────────
+          # Python SDK writes otelTraceID/otelSpanID (camelCase) AND
+          # trace_id/span_id (snake_case). Promote otel* ones if snake_case
+          # is absent, then drop all duplicates in Step 10.
           - type: move
             from: attributes.otelTraceID
             to: attributes["trace_id"]
-            if: 'attributes.otelTraceID != nil'
+            if: 'attributes.otelTraceID != nil and attributes.trace_id == nil'
           - type: move
             from: attributes.otelSpanID
             to: attributes["span_id"]
-            if: 'attributes.otelSpanID != nil'
+            if: 'attributes.otelSpanID != nil and attributes.span_id == nil'
           - type: move
             from: attributes.trace_flags
             to: attributes["trace_flags"]
             if: 'attributes.trace_flags != nil'
 
-          # ── Step 7: severity mapping ──────────────────────────────────────
+          # ── Step 8: severity mapping ──────────────────────────────────────
           - type: severity_parser
             parse_from: attributes.level
             on_error: send_quiet
@@ -182,12 +189,37 @@ spec:
               error:    ERROR
               critical: FATAL
 
-          # ── Step 8: timestamp parsing ─────────────────────────────────────
+          # ── Step 9: timestamp ─────────────────────────────────────────────
+          # App emits '2026-06-06T11:19:36' (no sub-seconds, no Z suffix).
           - type: time_parser
             parse_from: attributes.timestamp
             layout_type: strptime
-            layout: '%Y-%m-%dT%H:%M:%S.%fZ'
+            layout: '%Y-%m-%dT%H:%M:%S'
             on_error: send_quiet
+
+          # ── Step 10: drop noisy Python logger internals ───────────────────
+          # These are Python logging.LogRecord fields with no value in Loki.
+          - type: remove
+            field: attributes.otelTraceSampled
+            if: 'attributes.otelTraceSampled != nil'
+          - type: remove
+            field: attributes.otelServiceName
+            if: 'attributes.otelServiceName != nil'
+          - type: remove
+            field: attributes.level
+            if: 'attributes.level != nil'
+          - type: remove
+            field: attributes.timestamp
+            if: 'attributes.timestamp != nil'
+          - type: remove
+            field: attributes.cri_time
+            if: 'attributes.cri_time != nil'
+          - type: remove
+            field: attributes.cri_stream
+            if: 'attributes.cri_stream != nil'
+          - type: remove
+            field: attributes.cri_flags
+            if: 'attributes.cri_flags != nil'
 
     processors:
       memory_limiter:
@@ -236,7 +268,7 @@ spec:
             value: daemonset
             action: insert
 
-      # Drop health-check and metrics-scrape spans before forwarding.
+      # Drop health-check and metrics-scrape noise from traces and logs.
       filter/health:
         error_mode: ignore
         traces:
@@ -249,6 +281,12 @@ spec:
             - 'attributes["url.path"] == "/healthz"'
             - 'attributes["url.path"] == "/readyz"'
             - 'attributes["url.path"] == "/metrics"'
+        logs:
+          log_record:
+            - 'attributes["http.path"] == "/health"'
+            - 'attributes["http.path"] == "/healthz"'
+            - 'attributes["http.path"] == "/readyz"'
+            - 'attributes["http.path"] == "/metrics"'
 
       # DaemonSet batch timeout (2s) << Aggregator decision_wait (10s).
       # Spans must arrive at the aggregator before its 10s decision window closes.
@@ -330,7 +368,7 @@ spec:
       pipelines:
         traces:
           receivers:  [otlp]
-          processors: [memory_limiter, k8sattributes, resource, filter/health, batch]
+          processors: [memory_limiter, filter/health, resource, k8sattributes, batch]
           exporters:
             - loadbalancing/traces
             {{- if .Values.backends.debug.enabled }}
@@ -344,7 +382,7 @@ spec:
 
         logs:
           receivers:  [otlp, filelog]   # OTLP = SDK-emitted logs; filelog = stdout/stderr from /var/log/pods
-          processors: [memory_limiter, k8sattributes, resource, batch]
+          processors: [memory_limiter, filter/health, k8sattributes, resource, batch]
           exporters:
             - loadbalancing/metrics_logs
             {{- if .Values.backends.debug.enabled }}
