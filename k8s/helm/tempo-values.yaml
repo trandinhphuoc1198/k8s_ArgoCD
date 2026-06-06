@@ -233,8 +233,8 @@ tempo:
         blocklist_poll: 5m
 
     server:
-      http_listen_port: 3200
-      grpc_listen_port: 9095
+      # http_listen_port: 3200
+      # grpc_listen_port: 9095
       log_level: info
 
 # ---------------------------------------------------------------------------
