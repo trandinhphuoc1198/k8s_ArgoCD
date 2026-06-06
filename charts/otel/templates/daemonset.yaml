@@ -133,28 +133,75 @@ spec:
             from: attributes.container
             to: resource["k8s.container.name"]
 
-          # Step 4: parse the outer Docker/containerd JSON wrapper
-          # Kubernetes wraps each log line in {"log":"...","stream":"stdout","time":"..."}
+          # ── Step 4: Runtime detection + body unwrap ──────────────────────────
+          # Self-hosted K8S on EC2 uses containerd, not Docker.
+          # The log line format differs between the two runtimes:
+          #
+          #   Docker (dockershim):
+          #     Body is a JSON string:
+          #     {"log":"<actual line>\n","stream":"stdout","time":"<ts>"}
+          #     → parse JSON, then move attributes.log → body
+          #
+          #   Containerd (CRI / self-hosted K8S default):
+          #     Body is a plain text line with a header prefix:
+          #     <timestamp> <stream> <flags> <actual line>
+          #     e.g. 2026-06-06T11:14:46.347Z stdout F {"message":"..."}
+          #     → strip the CRI header via regex, body becomes the actual line
+          #
+          # A router branches on the body content so both runtimes work.
+          - type: router
+            id: runtime_router
+            routes:
+              # Docker: body starts with { and contains a "log" key
+              - output: parse_docker_wrapper
+                expr: 'body matches "^\\{.*\"log\":"'
+              # Containerd: body matches the CRI log format header
+              - output: parse_containerd_header
+                expr: 'body matches "^\\d{4}-\\d{2}-\\d{2}T"'
+            default: parse_app_json   # already unwrapped or unknown format
+
+          # ── Docker path ───────────────────────────────────────────────────
           - type: json_parser
             id: parse_docker_wrapper
             parse_from: body
-            on_error: send_quiet   # silently drop lines that aren't JSON-wrapped
+            on_error: send_quiet
+            output: unwrap_docker_log
 
-          # Step 5: unwrap — the actual log content is in the "log" field
           - type: move
+            id: unwrap_docker_log
             from: attributes.log
             to: body
+            output: parse_app_json
 
-          # Step 6: try to parse the body as your app's JSON log format.
+          # ── Containerd path ───────────────────────────────────────────────
+          # CRI format: "<timestamp> <stream> <flags> <body>"
+          # flags: "F" = full line, "P" = partial (multiline, rare)
+          - type: regex_parser
+            id: parse_containerd_header
+            regex: '^(?P<cri_time>\S+) (?P<cri_stream>\S+) (?P<cri_flags>\S+) (?P<cri_log>.*)$'
+            parse_from: body
+            on_error: send_quiet
+            output: unwrap_containerd_log
+
+          - type: move
+            id: unwrap_containerd_log
+            from: attributes.cri_log
+            to: body
+            output: parse_app_json
+
+          # ── Step 5: parse app JSON (both paths converge here) ─────────────
           # Expected fields from Python structlog / python-json-logger:
-          #   {"timestamp":"...","level":"INFO","message":"...","trace_id":"...","span_id":"...","service":"..."}
+          #   {"timestamp":"...","level":"INFO","message":"...","trace_id":"...","span_id":"..."}
+          # Plain-text lines (startup banners, tracebacks) are forwarded as-is.
           - type: json_parser
             id: parse_app_json
             parse_from: body
-            on_error: send_quiet   # plain-text logs (e.g. startup lines) are forwarded as-is
+            on_error: send_quiet
 
-          # Step 7: promote trace correlation fields to log record attributes
-          # These are set by OTEL_PYTHON_LOG_CORRELATION=true in the Instrumentation CR.
+          # ── Step 6: promote trace correlation fields ──────────────────────
+          # trace_id / span_id / trace_flags are injected by the Python SDK
+          # when OTEL_PYTHON_LOG_CORRELATION=true. Moving them to named
+          # attributes lets the Loki exporter index them as structured metadata.
           - type: move
             from: attributes.trace_id
             to: attributes["trace_id"]
@@ -168,7 +215,7 @@ spec:
             to: attributes["trace_flags"]
             if: 'attributes.trace_flags != nil'
 
-          # Step 8: map Python log level string → OTel SeverityNumber
+          # ── Step 7: severity mapping ──────────────────────────────────────
           - type: severity_parser
             parse_from: attributes.level
             on_error: send_quiet
@@ -179,7 +226,7 @@ spec:
               error:    ERROR
               critical: FATAL
 
-          # Step 9: parse the app timestamp if present
+          # ── Step 8: timestamp parsing ─────────────────────────────────────
           - type: time_parser
             parse_from: attributes.timestamp
             layout_type: strptime
