@@ -82,6 +82,11 @@ distributor:
       cpu: 500m
       memory: 256Mi
 
+  traces:
+    otlp:
+      grpc:
+        enabled: true
+
 
 # ---------------------------------------------------------------------------
 # Ingester
