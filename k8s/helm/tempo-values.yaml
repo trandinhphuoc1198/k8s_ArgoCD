@@ -204,3 +204,7 @@ metaMonitoring:
   serviceMonitor:
     # -- If enabled, ServiceMonitor resources for Prometheus Operator are created
     enabled: true
+
+metricsGenerator:
+  # -- Specifies whether a metrics-generator should be deployed
+  enabled: true
