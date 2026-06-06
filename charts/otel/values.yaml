@@ -200,7 +200,7 @@ instrumentation:
 tempo:
   s3:
     # Set false if you pre-create the secret outside of Helm
-    createSecret: true
+    createSecret: false
     accessKey: "REPLACE_WITH_YOUR_ACCESS_KEY"     # override with --set or external secret
     secretKey: "REPLACE_WITH_YOUR_SECRET_KEY"     # override with --set or external secret
 
