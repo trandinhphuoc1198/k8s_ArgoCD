@@ -74,13 +74,6 @@ distributor:
     maxReplicas: 3
     targetCPUUtilizationPercentage: 60
 
-  service:
-    additionalPorts:
-      - name: otlp-grpc
-        port: 4317
-        targetPort: 4317
-        protocol: TCP
-
   resources:
     requests:
       cpu: 100m
@@ -89,6 +82,12 @@ distributor:
       cpu: 500m
       memory: 256Mi
 
+traces:
+  otlp:
+    grpc:
+      enabled: true
+    http:
+      enabled: true
 
 # ---------------------------------------------------------------------------
 # Ingester
