@@ -163,7 +163,7 @@ spec:
           insecure: true
         compression: gzip
         keepalive:
-          time: 30s
+          time: 60s
           timeout: 10s
           permit_without_stream: true
         sending_queue:

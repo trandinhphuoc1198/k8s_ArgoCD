@@ -62,6 +62,13 @@ storage:
 # NOTE: tempo-distributed chart uses per-component extraEnvFrom — see each
 # component block below. There is no global extraEnvFrom in this chart.
 
+
+# Define service for OTel Collector to send traces to Tempo distributor.
+traces:
+  otlp:
+    grpc:
+      enabled: true
+
 # ---------------------------------------------------------------------------
 # Distributor
 # Receives OTLP/gRPC from the OTel aggregator, hashes traces to ingesters.
@@ -81,13 +88,6 @@ distributor:
     limits:
       cpu: 500m
       memory: 256Mi
-
-traces:
-  otlp:
-    grpc:
-      enabled: true
-    http:
-      enabled: true
 
 # ---------------------------------------------------------------------------
 # Ingester
