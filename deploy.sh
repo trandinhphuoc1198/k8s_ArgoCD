@@ -179,9 +179,6 @@ if [[ "$SKIP_LOKI" != "true" ]]; then
     --namespace "$OTEL_NAMESPACE" \
     --version   "$LOKI_VERSION" \
     --values    "$ROOT_DIR/k8s/helm/loki-values.yaml" \
-    --set       ingester.persistence.storageClass="$STORAGE_CLASS" \
-    --set       compactor.persistence.storageClass="$STORAGE_CLASS" \
-    --set       indexGateway.persistence.storageClass="$STORAGE_CLASS" \
     --wait \
     --timeout 5m
 

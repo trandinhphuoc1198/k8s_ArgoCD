@@ -164,13 +164,6 @@ ingester:
       cpu: 1000m
       memory: 2Gi
 
-  persistence:
-    enabled: true
-    storageClass: standard   # override via --set at deploy time using $STORAGE_CLASS
-    size: 1Gi
-    accessModes:
-      - ReadWriteOnce
-
   extraEnv:
     - name: AWS_REGION
       value: ap-northeast-1
@@ -259,13 +252,6 @@ compactor:
   #   - secretRef:
   #       name: loki-s3-credentials
 
-  persistence:
-    enabled: true
-    storageClass: standard
-    size: 1Gi
-    accessModes:
-      - ReadWriteOnce
-
 # ---------------------------------------------------------------------------
 # Index Gateway
 # Caches tsdb index lookups — reduces S3 read traffic on repeated queries.
@@ -287,16 +273,6 @@ indexGateway:
   extraEnv:
     - name: AWS_REGION
       value: ap-northeast-1
-  # extraEnvFrom:
-  #   - secretRef:
-  #       name: loki-s3-credentials
-
-  persistence:
-    enabled: true
-    storageClass: standard
-    size: 1Gi
-    accessModes:
-      - ReadWriteOnce
 
 # ---------------------------------------------------------------------------
 # Gateway (nginx)
