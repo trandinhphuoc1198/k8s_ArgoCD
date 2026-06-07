@@ -44,7 +44,7 @@ loki:
           # component block below). AWS SDK reads AWS_ACCESS_KEY_ID +
           # AWS_SECRET_ACCESS_KEY automatically — no keys set here.
           insecure: false
-      replication_factor: 3
+      replication_factor: 2
       ring:
         kvstore:
           store: memberlist
@@ -145,7 +145,8 @@ distributor:
 # Must have replicas >= replication_factor (3).
 # ---------------------------------------------------------------------------
 ingester:
-  replicas: 3
+  replicas: 2
+  maxUnavailable: 2
 
   resources:
     requests:
