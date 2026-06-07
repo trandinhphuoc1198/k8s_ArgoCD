@@ -2,7 +2,7 @@ controller:
   replicaCount: 2
   config:
       enable-opentelemetry: "true"
-      otlp-collector-host: "otel-collector.observability.svc.cluster.local"
+      otlp-collector-host: "otel-collector-ds-collector.observability.svc.cluster.local"
       otlp-collector-port: "4317"
       opentelemetry-trust-incoming-span: "true"
       opentelemetry-operation-name: "$request_method $uri"
