@@ -137,9 +137,15 @@ distributor:
   extraEnv:
     - name: AWS_REGION
       value: ap-northeast-1
-  # extraEnvFrom:
-  #   - secretRef:
-  #       name: loki-s3-credentials   # provides AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
+    
+  otlp_config:
+    default_resource_attributes_as_index_labels:
+      - service.name
+      - deployment.environment
+      - k8s.namespace.name
+      - k8s.pod.name
+      - k8s.container.name
+      - k8s.deployment.name
 
 # ---------------------------------------------------------------------------
 # Ingester

@@ -32,9 +32,8 @@ uninstall_release() {
 echo "🛑 Starting cluster teardown..."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. Uninstall Helm Releases (Reverse Order)
+# 1. Uninstall Workloads (Frees up the PVCs from active use)
 # ─────────────────────────────────────────────────────────────────────────────
-
 echo ""
 echo "🚀 Removing FastAPI Application..."
 uninstall_release fastapi-app "$APP_NAMESPACE"
@@ -53,29 +52,16 @@ uninstall_release otel "$OTEL_NAMESPACE"
 uninstall_release opentelemetry-operator "$OTEL_NAMESPACE"
 
 echo ""
-echo "🔀 Removing Ingress NGINX..."
-uninstall_release ingress-nginx "$INGRESS_NAMESPACE"
-
-echo ""
 echo "📊 Removing Kube-Prometheus-Stack..."
 uninstall_release kube-prometheus-stack "$MONITORING_NAMESPACE"
 
-echo ""
-echo "💾 Removing AWS EBS CSI Driver..."
-uninstall_release aws-ebs-csi-driver "kube-system"
-
-echo ""
-echo "📈 Removing Metrics Server..."
-uninstall_release metrics-server "kube-system"
-
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. Check and Remove All PVCs
+# 2. Delete PVCs (Must be done BEFORE removing the CSI driver)
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "🧹 Checking and removing all PersistentVolumeClaims (PVCs)..."
 
 for ns in "$APP_NAMESPACE" "$OTEL_NAMESPACE" "$MONITORING_NAMESPACE" "$INGRESS_NAMESPACE"; do
-  # Check if namespace exists before looking for PVCs
   if kubectl get namespace "$ns" >/dev/null 2>&1; then
     PVC_COUNT=$(kubectl get pvc -n "$ns" --no-headers 2>/dev/null | wc -l || echo 0)
     
@@ -88,8 +74,26 @@ for ns in "$APP_NAMESPACE" "$OTEL_NAMESPACE" "$MONITORING_NAMESPACE" "$INGRESS_N
   fi
 done
 
+echo "⏳ Waiting 15 seconds to allow AWS EBS CSI driver to process volume deletions..."
+sleep 15
+
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Clean up Namespaces
+# 3. Uninstall Base Infrastructure Components
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "🔀 Removing Ingress NGINX..."
+uninstall_release ingress-nginx "$INGRESS_NAMESPACE"
+
+echo ""
+echo "💾 Removing AWS EBS CSI Driver..."
+uninstall_release aws-ebs-csi-driver "kube-system"
+
+echo ""
+echo "📈 Removing Metrics Server..."
+uninstall_release metrics-server "kube-system"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Clean up Namespaces
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "🗑️ Removing Namespaces..."
@@ -108,6 +112,9 @@ done
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "✅ Teardown complete."
-echo "Remaining PVCs across all namespaces (should be empty for uninstalled components):"
+echo "Remaining PVCs across all namespaces (should be empty):"
 kubectl get pvc -A
+echo ""
+echo "Remaining PVs (should be empty):"
+kubectl get pv
 echo ""
