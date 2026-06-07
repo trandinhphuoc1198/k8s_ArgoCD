@@ -84,11 +84,6 @@ loki:
       # Per-stream label limits — high cardinality destroys Loki performance
       max_label_names_per_series: 30
 
-    otlp:
-      http:
-        enabled: true
-      grpc:
-        enabled: true
 
     # ── Ingester ────────────────────────────────────────────────────────────
     ingester:
