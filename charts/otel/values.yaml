@@ -127,7 +127,7 @@ backends:
   # Push endpoint points at the Loki gateway (nginx) which routes to distributors.
   loki:
     enabled: true
-    endpoint: "http://loki-gateway.observability.svc.cluster.local:3100"
+    endpoint: "http://loki-gateway.observability.svc.cluster.local:3100/otlp"
 
   # Generic OTLP endpoint (e.g. Grafana Cloud, Honeycomb, Datadog)
   otlpExternal:
