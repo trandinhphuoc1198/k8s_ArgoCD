@@ -194,6 +194,8 @@ spec:
       # metadata so Grafana can render "Jump to trace" links from log lines.
       otlphttp:
         endpoint: {{ .Values.backends.loki.endpoint | quote }}
+        headers:
+          X-Scope-OrgID: "fake"
 
       {{- end }}
 
