@@ -16,6 +16,8 @@ OTEL_OPERATOR_VERSION="${OTEL_OPERATOR_VERSION:-0.64.2}"
 SKIP_OTEL="${SKIP_OTEL:-false}"
 SKIP_TEMPO="${SKIP_TEMPO:-false}"
 TEMPO_VERSION="${TEMPO_VERSION:-1.9.0}"
+SKIP_LOKI="${SKIP_LOKI:-false}"
+LOKI_VERSION="${LOKI_VERSION:-0.79.3}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -30,12 +32,12 @@ require_command kubectl
 # ─────────────────────────────────────────────────────────────────────────────
 # Helm repos
 # ─────────────────────────────────────────────────────────────────────────────
-helm repo add metrics-server       https://kubernetes-sigs.github.io/metrics-server/         >/dev/null 2>&1 || true
-helm repo add ingress-nginx        https://kubernetes.github.io/ingress-nginx                >/dev/null 2>&1 || true
+helm repo add metrics-server     https://kubernetes-sigs.github.io/metrics-server/         >/dev/null 2>&1 || true
+helm repo add ingress-nginx      https://kubernetes.github.io/ingress-nginx                >/dev/null 2>&1 || true
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts      >/dev/null 2>&1 || true
-helm repo add aws-ebs-csi-driver   https://kubernetes-sigs.github.io/aws-ebs-csi-driver      >/dev/null 2>&1 || true
-helm repo add open-telemetry       https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
-helm repo add grafana              https://grafana.github.io/helm-charts                         >/dev/null 2>&1 || true
+helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver      >/dev/null 2>&1 || true
+helm repo add open-telemetry     https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
+helm repo add grafana             https://grafana.github.io/helm-charts                        >/dev/null 2>&1 || true
 helm repo update
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -106,14 +108,11 @@ if [[ "$SKIP_OTEL" != "true" ]]; then
     --wait \
     --timeout 5m
 
+  # The admission webhook must be Ready before we apply the CRs —
+  # otherwise the Instrumentation / OpenTelemetryCollector resources are rejected.
   echo "Waiting for OTel Operator webhook to become ready…"
-  kubectl rollout status deployment/opentelemetry-operator \
+  kubectl rollout status deployment/opentelemetry-operator-controller-manager \
     -n "$OTEL_NAMESPACE" --timeout=120s
-
-  # Hardening 1: Allow time for the webhook's TLS certificates to populate.
-  # Prevents custom resource rejections on immediate submittal.
-  echo "Allowing webhook certificates to initialize..."
-  sleep 10
 
   echo "🔭 Installing OTel Collectors + Instrumentation CR…"
   helm upgrade --install otel "$ROOT_DIR/charts/otel" \
@@ -122,47 +121,28 @@ if [[ "$SKIP_OTEL" != "true" ]]; then
     --wait \
     --timeout 3m
 
+  # Wait for both collectors to roll out
   OTEL_DS_NAME="otel-collector-ds-collector"
   OTEL_AGG_NAME="otel-collector-agg-collector"
 
-  # Hardening 2: Explicit loops to wait for the operator to convert your custom
-  # resources into active native Kubernetes resources before evaluating rollouts.
-  echo "Waiting for Operator to generate DaemonSet resource structure..."
-  until kubectl get daemonset "$OTEL_DS_NAME" -n "$OTEL_NAMESPACE" >/dev/null 2>&1; do
-    sleep 2
-  done
-  echo "DaemonSet generated. Testing rollout state..."
-  kubectl rollout status daemonset/"$OTEL_DS_NAME" -n "$OTEL_NAMESPACE" --timeout=120s
+  echo "Waiting for DaemonSet collector…"
+  kubectl rollout status daemonset/"$OTEL_DS_NAME" -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
+    || echo "Warning: DaemonSet '$OTEL_DS_NAME' not found yet — it may still be provisioning."
 
-  echo "Waiting for Operator to generate Aggregator Deployment resource structure..."
-  until kubectl get deployment "$OTEL_AGG_NAME" -n "$OTEL_NAMESPACE" >/dev/null 2>&1; do
-    sleep 2
-  done
-  echo "Deployment generated. Testing rollout state..."
-  kubectl rollout status deployment/"$OTEL_AGG_NAME" -n "$OTEL_NAMESPACE" --timeout=120s
+  echo "Waiting for Aggregator Deployment collector…"
+  kubectl rollout status deployment/"$OTEL_AGG_NAME" -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
+    || echo "Warning: Deployment '$OTEL_AGG_NAME' not found yet — it may still be provisioning."
 else
   echo "⏭  SKIP_OTEL=true — skipping OpenTelemetry stack."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Grafana Tempo (distributed)
+# Installed before fastapi-app so traces are captured from the first request.
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "$SKIP_TEMPO" != "true" ]]; then
   echo ""
   echo "🟠 Installing Grafana Tempo distributed v${TEMPO_VERSION}…"
-
-  if ! kubectl get secret tempo-s3-credentials -n "$OTEL_NAMESPACE" >/dev/null 2>&1; then
-    echo ""
-    echo "  ❌ Secret 'tempo-s3-credentials' not found in namespace '$OTEL_NAMESPACE'."
-    echo "     Create it first, then re-run deploy.sh:"
-    echo ""
-    echo "     kubectl create secret generic tempo-s3-credentials \\"
-    echo "       --namespace ${OTEL_NAMESPACE} \\"
-    echo "       --from-literal=AWS_ACCESS_KEY_ID=YOUR_KEY \\"
-    echo "       --from-literal=AWS_SECRET_ACCESS_KEY=YOUR_SECRET"
-    echo ""
-    exit 1
-  fi
 
   helm upgrade --install tempo grafana/tempo-distributed \
     --namespace "$OTEL_NAMESPACE" \
@@ -172,21 +152,56 @@ if [[ "$SKIP_TEMPO" != "true" ]]; then
     --wait \
     --timeout 5m
 
-  # Hardening 3: Checked and modified component names to ensure full compliance 
-  # with the tempo-distributed chart naming layout (ReleaseName-ChartName-Component)
   echo "Waiting for Tempo distributor…"
-  kubectl rollout status deployment/tempo-tempo-distributed-distributor -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
-    || echo "Warning: tempo-distributor rollout check skipped or delayed."
+  kubectl rollout status deployment/tempo-distributor -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
+    || echo "Warning: tempo-distributor not ready yet."
 
   echo "Waiting for Tempo query-frontend…"
-  kubectl rollout status deployment/tempo-tempo-distributed-query-frontend -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
-    || echo "Warning: tempo-query-frontend rollout check skipped or delayed."
+  kubectl rollout status deployment/tempo-query-frontend -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
+    || echo "Warning: tempo-query-frontend not ready yet."
 
   echo "Waiting for Tempo ingester…"
-  kubectl rollout status statefulset/tempo-tempo-distributed-ingester -n "$OTEL_NAMESPACE" --timeout=180s 2>/dev/null \
-    || echo "Warning: tempo-ingester rollout check skipped or delayed."
+  kubectl rollout status statefulset/tempo-ingester -n "$OTEL_NAMESPACE" --timeout=180s 2>/dev/null \
+    || echo "Warning: tempo-ingester not ready yet."
 else
   echo "⏭  SKIP_TEMPO=true — skipping Grafana Tempo."
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Grafana Loki (distributed)
+# Installed before fastapi-app so logs are captured from the first request.
+# ─────────────────────────────────────────────────────────────────────────────
+if [[ "$SKIP_LOKI" != "true" ]]; then
+  echo ""
+  echo "🟡 Installing Grafana Loki distributed v${LOKI_VERSION}…"
+
+  helm upgrade --install loki grafana/loki-distributed \
+    --namespace "$OTEL_NAMESPACE" \
+    --version   "$LOKI_VERSION" \
+    --values    "$ROOT_DIR/k8s/helm/loki-values.yaml" \
+    --set       ingester.persistence.storageClass="$STORAGE_CLASS" \
+    --set       compactor.persistence.storageClass="$STORAGE_CLASS" \
+    --set       indexGateway.persistence.storageClass="$STORAGE_CLASS" \
+    --wait \
+    --timeout 5m
+
+  echo "Waiting for Loki distributor…"
+  kubectl rollout status deployment/loki-distributed-distributor -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
+    || echo "Warning: loki-distributor not ready yet."
+
+  echo "Waiting for Loki query-frontend…"
+  kubectl rollout status deployment/loki-distributed-query-frontend -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
+    || echo "Warning: loki-query-frontend not ready yet."
+
+  echo "Waiting for Loki ingester…"
+  kubectl rollout status statefulset/loki-distributed-ingester -n "$OTEL_NAMESPACE" --timeout=180s 2>/dev/null \
+    || echo "Warning: loki-ingester not ready yet."
+
+  echo "Waiting for Loki gateway…"
+  kubectl rollout status deployment/loki-distributed-gateway -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
+    || echo "Warning: loki-gateway not ready yet."
+else
+  echo "⏭  SKIP_LOKI=true — skipping Grafana Loki."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -249,6 +264,12 @@ if [[ "$SKIP_TEMPO" != "true" ]]; then
   echo ""
 fi
 
+if [[ "$SKIP_LOKI" != "true" ]]; then
+  echo "🟡 Grafana Loki:"
+  kubectl get pods -n "$OTEL_NAMESPACE" -l app.kubernetes.io/name=loki-distributed 2>/dev/null || true
+  echo ""
+fi
+
 echo "💡 Next Steps:"
 echo "  1. Check your FastAPI pods are in 'Running' state: kubectl get pods -n fastapi"
 echo "  2. Check metrics are working: kubectl top pods -n fastapi (may take 1-2 min)"
@@ -260,6 +281,10 @@ if [[ "$SKIP_OTEL" != "true" ]]; then
   echo "  7. Tail collector logs: kubectl logs -l app.kubernetes.io/name=otel-collector-agg-collector -n ${OTEL_NAMESPACE} -f"
 fi
 if [[ "$SKIP_TEMPO" != "true" ]]; then
-  echo "  8. Tempo query-frontend: kubectl port-forward svc/tempo-tempo-distributed-query-frontend 3200:3200 -n ${OTEL_NAMESPACE}"
+  echo "  8. Tempo query-frontend: kubectl port-forward svc/tempo-query-frontend 3200:3200 -n ${OTEL_NAMESPACE}"
+fi
+if [[ "$SKIP_LOKI" != "true" ]]; then
+  echo "  9. View logs in Grafana: open Explore → select Loki datasource"
+  echo " 10. LogQL example: {namespace=\"fastapi\"} | json | trace_id != \"\"'"
 fi
 echo ""
