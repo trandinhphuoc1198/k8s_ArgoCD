@@ -70,7 +70,7 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --set grafana.persistence.storageClassName="$STORAGE_CLASS" \
   --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName="$STORAGE_CLASS"
 
-kubectl rollout status deployment/kube-prometheus-stack-operator  -n "$MONITORING_NAMESPACE" --timeout=120s
+kubectl rollout status deployment/monitoring-operator  -n "$MONITORING_NAMESPACE" --timeout=120s
 kubectl rollout status deployment/kube-prometheus-stack-grafana   -n "$MONITORING_NAMESPACE" --timeout=120s
 
 PROM_SS=$(kubectl get statefulset -n "$MONITORING_NAMESPACE" \
