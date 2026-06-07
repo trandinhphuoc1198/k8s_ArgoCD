@@ -196,7 +196,7 @@ querier:
 # Shards LogQL queries across queriers. Grafana connects here (port 3100).
 # ---------------------------------------------------------------------------
 queryFrontend:
-  replicas: 1
+  replicas: 2
 
   resources:
     requests:
