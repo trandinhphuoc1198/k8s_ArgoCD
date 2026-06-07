@@ -110,9 +110,9 @@ ingester:
   extraEnv:
     - name: AWS_REGION
       value: ap-northeast-1
-  extraEnvFrom:
-    - secretRef:
-        name: tempo-s3-credentials
+  # extraEnvFrom:
+  #   - secretRef:
+  #       name: tempo-s3-credentials
 
   config:
     replication_factor: 2
@@ -135,9 +135,9 @@ querier:
   extraEnv:
     - name: AWS_REGION
       value: ap-northeast-1
-  extraEnvFrom:
-    - secretRef:
-        name: tempo-s3-credentials
+  # extraEnvFrom:
+  #   - secretRef:
+  #       name: tempo-s3-credentials
 
 # ---------------------------------------------------------------------------
 # Query Frontend
@@ -173,9 +173,9 @@ compactor:
   extraEnv:
     - name: AWS_REGION
       value: ap-northeast-1
-  extraEnvFrom:
-    - secretRef:
-        name: tempo-s3-credentials
+  # extraEnvFrom:
+  #   - secretRef:
+  #       name: tempo-s3-credentials
 
   config:
     compaction:
