@@ -174,7 +174,9 @@ ingester:
 # Fetches chunks from ingesters (recent) and S3 (older).
 # ---------------------------------------------------------------------------
 querier:
-  replicas: 2
+  replicas: 1
+  maxUnavailable: 2
+
 
   resources:
     requests:
@@ -197,7 +199,6 @@ querier:
 # ---------------------------------------------------------------------------
 queryFrontend:
   replicas: 1
-  maxUnavailable: 2
 
   resources:
     requests:
