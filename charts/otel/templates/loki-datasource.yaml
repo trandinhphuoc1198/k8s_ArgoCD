@@ -27,33 +27,28 @@ data:
         type: loki
         uid: loki
         access: proxy
-        url: http://loki-gateway.{{ .Values.global.namespace }}.svc.cluster.local:3100
+        url: http://loki-gateway.{{ .Values.global.namespace }}.svc.cluster.local
         version: 1
         isDefault: false
         editable: false
         jsonData:
           maxLines: 1000
           timeout: 60
-
-          # ── Derived fields — trace_id → Tempo link ──────────────────────────
-          # When Grafana finds a log line with a trace_id field it renders a
-          # "Jump to trace" button that opens the trace in Tempo Explore.
-          # Works for both JSON-structured logs and plain-text logs that contain
-          # a trace_id= pattern.
+          httpHeaderName1: "X-Scope-OrgID"
           derivedFields:
-            # Match trace_id in structured JSON log fields (set by OTEL_PYTHON_LOG_CORRELATION)
             - name: TraceID
-              matcherType: label        # match on a Loki label / structured metadata field
+              matcherType: label
               matcherRegex: trace_id
               url: "$${__value.raw}"
               urlDisplayLabel: "View Trace in Tempo"
-              datasourceUid: tempo      # must match the uid in tempo-datasource.yaml
-
-            # Fallback: match trace_id in plain-text log body
+              datasourceUid: tempo
             - name: TraceID_body
               matcherType: regex
               matcherRegex: '"trace_id"\s*:\s*"([a-f0-9]{32})"'
               url: "$${__value.raw}"
               urlDisplayLabel: "View Trace in Tempo"
               datasourceUid: tempo
+        secureJsonData:
+          httpHeaderValue1: "fake"
+
 {{- end }}
