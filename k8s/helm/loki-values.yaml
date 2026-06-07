@@ -20,10 +20,10 @@ singleBinary:
   resources:
     requests:
       cpu: 500m
-      memory: 512Mi
+      memory: 256Mi
     limits:
       cpu: 2
-      memory: 2Gi
+      memory: 1Gi
   persistence:
     enabled: false                 # using S3, no local PVC needed for data
                                    # WAL still uses emptyDir by default
