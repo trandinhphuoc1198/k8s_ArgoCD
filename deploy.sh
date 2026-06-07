@@ -17,7 +17,7 @@ SKIP_OTEL="${SKIP_OTEL:-false}"
 SKIP_TEMPO="${SKIP_TEMPO:-false}"
 TEMPO_VERSION="${TEMPO_VERSION:-1.9.0}"
 SKIP_LOKI="${SKIP_LOKI:-false}"
-LOKI_VERSION="${LOKI_VERSION:-0.79.3}"
+LOKI_VERSION="${LOKI_VERSION:-7.1.0}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -176,7 +176,7 @@ if [[ "$SKIP_LOKI" != "true" ]]; then
   echo ""
   echo "🟡 Installing Grafana Loki distributed v${LOKI_VERSION}…"
 
-  helm upgrade --install loki grafana/loki-distributed \
+  helm upgrade --install loki grafana/loki \
     --namespace "$OTEL_NAMESPACE" \
     --version   "$LOKI_VERSION" \
     --values    "$ROOT_DIR/k8s/helm/loki-values.yaml" \

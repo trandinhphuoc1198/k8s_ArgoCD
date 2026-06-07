@@ -1,305 +1,223 @@
-# k8s/helm/loki-values.yaml
-# ─────────────────────────────────────────────────────────────────────────────
-# Grafana Loki — distributed mode on self-hosted K8S (EC2)
-# Storage backend: AWS S3 bucket: log-s3-phuoctd6
-# Auth: static IAM credentials via Secret/loki-s3-credentials
-# Retention: 1 day
-#
-# Install:
-#   helm repo add grafana https://grafana.github.io/helm-charts
-#   helm repo update
-#   helm upgrade --install loki grafana/loki-distributed \
-#     --namespace observability \
-#     --values k8s/helm/loki-values.yaml \
-#     --wait
-#
-# Prerequisites:
-#   1. Secret/loki-s3-credentials exists in the observability namespace
-#      (created by charts/otel/templates/loki-s3-secret.yaml)
-#   2. IAM user has s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket
-#      on bucket log-s3-phuoctd6
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# Loki 3.x Helm Values
+# Mode:    Monolithic
+# Storage: S3 / S3-compatible (MinIO)
+# Auth:    Disabled (single tenant)
+# OTLP:   Enabled (native ingestion)
+# Chart:   grafana/loki >= 6.x (targets Loki 3.x image)
+# =============================================================================
 
-# ---------------------------------------------------------------------------
-# Global Loki config
-# ---------------------------------------------------------------------------
-loki:
-  # Distributor — accepts push requests from the OTel aggregator loki exporter
-  # Ingester   — buffers chunks in memory, flushes to S3
-  # Querier    — reads from ingesters (hot) + S3 (cold)
-  # Query Frontend — shards queries across queriers; Grafana connects here
-  # Compactor  — merges S3 chunks, enforces retention
-  # Index Gateway — caches S3 index lookups (boltdb-shipper / tsdb)
+global:
+  clusterDomain: cluster.local
 
-  structuredConfig:
-    auth_enabled: false   # single-tenant mode — no X-Scope-OrgID header needed
+# -----------------------------------------------------------------------------
+# Deployment mode
+# -----------------------------------------------------------------------------
+deploymentMode: SingleBinary
 
-    # ── Storage ────────────────────────────────────────────────────────────
-    common:
-      storage:
-        s3:
-          bucketnames: log-s3-phuoctd6
-          region: ap-northeast-1
-          # Credentials injected from env vars via extraEnvFrom (see each
-          # component block below). AWS SDK reads AWS_ACCESS_KEY_ID +
-          # AWS_SECRET_ACCESS_KEY automatically — no keys set here.
-          insecure: false
-      replication_factor: 2
-      ring:
-        kvstore:
-          store: memberlist
-
-    # ── Schema — tsdb is the current recommended index type ───────────────
-    schema_config:
-      configs:
-        - from: "2024-01-01"
-          store: tsdb
-          object_store: s3
-          schema: v13
-          index:
-            prefix: loki_index_
-            period: 24h
-
-    # ── Storage config ─────────────────────────────────────────────────────
-    storage_config:
-      tsdb_shipper:
-        active_index_directory: /var/loki/tsdb-index
-        cache_location: /var/loki/tsdb-cache
-        cache_ttl: 24h
-      aws:
-        s3: s3://ap-northeast-1/log-s3-phuoctd6
-        s3forcepathstyle: true   # required for non-AWS S3-compatible endpoints; harmless on AWS
-
-    # ── Retention — 1 day ─────────────────────────────────────────────────
-    # compactor.retention_enabled must also be true (set below).
-    limits_config:
-      retention_period: 24h
-      # Reject logs older than retention to avoid writing data that would be
-      # immediately compacted away.
-      reject_old_samples: true
-      reject_old_samples_max_age: 24h
-      # Ingestion rate limits — tune up if you see 429s
-      ingestion_rate_mb: 16
-      ingestion_burst_size_mb: 32
-      # Per-stream label limits — high cardinality destroys Loki performance
-      max_label_names_per_series: 30
-
-
-    # ── Ingester ────────────────────────────────────────────────────────────
-    ingester:
-      chunk_idle_period: 30m
-      chunk_block_size: 262144
-      chunk_retain_period: 1m
-      wal:
-        dir: /var/loki/wal
-
-    # ── Query performance ───────────────────────────────────────────────────
-    query_range:
-      results_cache:
-        cache:
-          embedded_cache:
-            enabled: true
-            max_size_mb: 100
-
-    # ── Server ─────────────────────────────────────────────────────────────
-    server:
-      http_listen_port: 3100
-      grpc_listen_port: 9095
-      log_level: info
-
-# ---------------------------------------------------------------------------
-# Shared S3 credentials env — referenced by every component via extraEnvFrom
-# ---------------------------------------------------------------------------
-# NOTE: loki-distributed chart does NOT have a top-level extraEnvFrom.
-# Each component declares it individually below.
-
-# ---------------------------------------------------------------------------
-# Distributor
-# Receives push requests from the OTel aggregator loki exporter.
-# ---------------------------------------------------------------------------
-distributor:
-  replicas: 2
-  maxUnavailable: 2
-
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 60
-
+singleBinary:
+  replicas: 1                      # increase to 3+ for HA
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
       cpu: 500m
       memory: 512Mi
-
-  extraEnv:
-    - name: AWS_REGION
-      value: ap-northeast-1
-    
-# ---------------------------------------------------------------------------
-# Ingester
-# Buffers log chunks in memory with WAL, flushes completed chunks to S3.
-# Must have replicas >= replication_factor (3).
-# ---------------------------------------------------------------------------
-ingester:
-  replicas: 2
-  maxUnavailable: 2
-
-  resources:
-    requests:
-      cpu: 200m
-      memory: 200Mi
     limits:
-      cpu: 1000m
+      cpu: 2
       memory: 2Gi
+  persistence:
+    enabled: false                 # using S3, no local PVC needed for data
+                                   # WAL still uses emptyDir by default
 
-  extraEnv:
-    - name: AWS_REGION
-      value: ap-northeast-1
-  # extraEnvFrom:
-  #   - secretRef:
-  #       name: loki-s3-credentials
+# Disable all other component deployments (monolithic only)
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
 
-# ---------------------------------------------------------------------------
-# Querier
-# Fetches chunks from ingesters (recent) and S3 (older).
-# ---------------------------------------------------------------------------
-querier:
-  replicas: 1
-  maxUnavailable: 2
+# -----------------------------------------------------------------------------
+# Loki core configuration
+# -----------------------------------------------------------------------------
+loki:
+  image:
+    repository: grafana/loki
+    tag: "3.5.0"                   # pin to latest stable 3.x
 
+  auth_enabled: false              # single tenant
 
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 1Gi
+  # --- Common instance config --------------------------------------------------
+  commonConfig:
+    replication_factor: 1          # set to 3 if replicas > 1
 
-  extraEnv:
-    - name: AWS_REGION
-      value: ap-northeast-1
-  # extraEnvFrom:
-  #   - secretRef:
-  #       name: loki-s3-credentials
+  # --- Storage config ----------------------------------------------------------
+  storage:
+    type: s3
+    bucketNames:
+      chunks: log-s3-phuoctd6          # ← change to your bucket name
+      ruler: log-s3-phuoctd6            # ← change to your bucket name
+      admin: log-s3-phuoctd6            # ← change to your bucket name (can be same)
+    s3:
+      endpoint: ""                 # leave empty for AWS S3
+      region: ap-northeast-1       # ← change to your region
+      s3ForcePathStyle: false      # set true for MinIO / path-style S3
+      insecure: false              # set true for MinIO without TLS
 
-# ---------------------------------------------------------------------------
-# Query Frontend
-# Shards LogQL queries across queriers. Grafana connects here (port 3100).
-# ---------------------------------------------------------------------------
-queryFrontend:
-  replicas: 1
+  # --- Schema config -----------------------------------------------------------
+  # IMPORTANT: Loki 3.x requires tsdb index (v13+)
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
 
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 300m
-      memory: 256Mi
+  # --- Ingester ----------------------------------------------------------------
+  ingester:
+    chunk_idle_period: 2h
+    chunk_retain_period: 1m
+    max_chunk_age: 2h
+    wal:
+      enabled: true
+      dir: /var/loki/wal
 
-# ---------------------------------------------------------------------------
-# Query Scheduler (optional but recommended for distributed mode)
-# Decouples the frontend from querier workers for better parallelism.
-# ---------------------------------------------------------------------------
-queryScheduler:
-  enabled: true
-  replicas: 1
+  # --- Querier -----------------------------------------------------------------
+  querier:
+    max_concurrent: 4
 
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
+  # --- Query range -------------------------------------------------------------
+  query_range:
+    results_cache:
+      cache:
+        embedded_cache:
+          enabled: true
+          max_size_mb: 100
 
-# ---------------------------------------------------------------------------
-# Compactor
-# Merges S3 chunks into larger blocks and enforces the 1-day retention policy.
-# Must run as a single replica — compaction is not parallelisable.
-# ---------------------------------------------------------------------------
-compactor:
-  enabled: true
-  replicas: 1
+  # --- Compactor ---------------------------------------------------------------
+  compactor:
+    working_directory: /var/loki/compactor
+    delete_request_store: s3
+    retention_enabled: true
 
-  retention_enabled: true   # enables the retention_period from limits_config
+  # --- Limits (single tenant defaults) ----------------------------------------
+  limits_config:
+    # OTLP: required for structured metadata support
+    allow_structured_metadata: true
+    # Retention
+    retention_period: 744h         # 31 days — adjust as needed
+    # Ingestion
+    ingestion_rate_mb: 16
+    ingestion_burst_size_mb: 32
+    per_stream_rate_limit: 5MB
+    per_stream_rate_limit_burst: 20MB
+    max_streams_per_user: 10000
+    max_line_size: 256kb
+    # Query
+    max_query_series: 5000
+    max_query_parallelism: 8
+    max_entries_limit_per_query: 50000
 
-  resources:
-    requests:
-      cpu: 100m
-      memory: 126Mi
-    limits:
-      cpu: 500m
-      memory: 1Gi
+  # --- OTLP ingestion ----------------------------------------------------------
+  # Enables native OTLP log ingestion via /otlp/v1/logs
+  distributor:
+    otlp_config:
+      default_resource_attributes_as_index_labels:
+        - service.name
+        - service.namespace
+        - k8s.namespace.name
+        - k8s.pod.name
+        - k8s.container.name
+        - k8s.node.name
+        - deployment.environment
 
-  extraEnv:
-    - name: AWS_REGION
-      value: ap-northeast-1
-  # extraEnvFrom:
-  #   - secretRef:
-  #       name: loki-s3-credentials
+  # --- Server ------------------------------------------------------------------
+  server:
+    http_listen_port: 3100
+    grpc_listen_port: 9095
+    log_level: info
+    http_server_read_timeout: 600s
+    http_server_write_timeout: 600s
 
-# ---------------------------------------------------------------------------
-# Index Gateway
-# Caches tsdb index lookups — reduces S3 read traffic on repeated queries.
-# ---------------------------------------------------------------------------
-indexGateway:
-  enabled: true
-  replicas: 2
-  maxUnavailable: 2
+  # --- Storage config (chunk / index cache) ------------------------------------
+  chunk_store_config:
+    chunk_cache_config:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 200
 
-
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 300m
-      memory: 512Mi
-
-  extraEnv:
-    - name: AWS_REGION
-      value: ap-northeast-1
-
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Gateway (nginx)
-# Single ClusterIP entry point for both push (3100) and query (3100) paths.
-# The OTel aggregator loki exporter points at this service.
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 gateway:
   enabled: true
-  replicas: 2
-  maxUnavailable: 3
-
+  replicas: 1
   resources:
     requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 200m
+      cpu: 100m
       memory: 128Mi
-
+    limits:
+      cpu: 500m
+      memory: 256Mi
   service:
     type: ClusterIP
     port: 3100
+  # Expose OTLP endpoint through gateway
+  nginxConfig:
+    httpSnippet: ""
+    serverSnippet: ""
+    # The default gateway config already proxies all /loki/* and /otlp/* paths
 
-# ---------------------------------------------------------------------------
-# Memberlist — peer discovery for the ingester ring (no Consul/etcd needed)
-# ---------------------------------------------------------------------------
-memberlist:
-  service:
-    publishNotReadyAddresses: true
+# -----------------------------------------------------------------------------
+# Monitoring / self-monitoring (optional but recommended)
+# -----------------------------------------------------------------------------
+monitoring:
+  selfMonitoring:
+    enabled: false                 # set true if you have Grafana Agent / Alloy
+  serviceMonitor:
+    enabled: false                 # set true if you have Prometheus Operator
+  lokiCanary:
+    enabled: false
 
-# ---------------------------------------------------------------------------
-# ServiceMonitor — scraped by kube-prometheus-stack Prometheus
-# ---------------------------------------------------------------------------
-serviceMonitor:
-  enabled: true
-  interval: 30s
-  additionalLabels:
-    release: kube-prometheus-stack
+# -----------------------------------------------------------------------------
+# Test (disable in production)
+# -----------------------------------------------------------------------------
+test:
+  enabled: false
+
+# -----------------------------------------------------------------------------
+# ServiceAccount & RBAC
+# -----------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  automountServiceAccountToken: true
+  annotations: {}
+    # For IRSA (AWS IAM Roles for Service Accounts), add:
+    # eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>
+
+# -----------------------------------------------------------------------------
+# Extra env vars (alternative to inline credentials)
+# Use this + a Kubernetes Secret instead of hardcoding keys above
+# -----------------------------------------------------------------------------
+singleBinary:
+  replicas: 1
+  extraEnv:
+    []
+    # - name: AWS_ACCESS_KEY_ID
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: loki-s3-secret
+    #       key: access_key_id
+    # - name: AWS_SECRET_ACCESS_KEY
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: loki-s3-secret
+    #       key: secret_access_key
+
+# -----------------------------------------------------------------------------
+# PodDisruptionBudget
+# -----------------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: false                   # enable if replicas > 1
