@@ -50,31 +50,18 @@ data:
             datasourceUid: prometheus
             spanStartTimeShift: "-1m"
             spanEndTimeShift: "1m"
+            tags:
+                - key: "http.route"
+                  value: "exported_endpoint"
             queries:
               - name: "Request rate"
-                query: >
-                  sum(rate(fastapi_request_count_total{
-                    exported_endpoint="$${__span.tags.http.route}"
-                  }[5m]))
+                query: "sum(rate(fastapi_request_count_total{$__tags}[5m]))"
 
               - name: "Error rate"
-                query: >
-                  sum(rate(fastapi_request_count_total{
-                    exported_endpoint="$${__span.tags.http.route}",
-                    status_code=~"5.."
-                  }[5m]))
+                query: "sum(rate(fastapi_request_count_total{$__tags, status_code=~\"5..\"}[5m]))"
 
               - name: "Latency (p95)"
-                query: >
-                  histogram_quantile(
-                    0.95,
-                    sum by (le) (
-                      rate(fastapi_request_latency_seconds_bucket{
-                        exported_endpoint="$${__span.tags.http.route}"
-                      }[5m])
-                    )
-                  )
-
+                query: "histogram_quantile(0.95, sum by (le) (rate(fastapi_request_latency_seconds_bucket{$__tags}[5m])))"
 
           # Enable service graph in Grafana Explore
           serviceMap:
