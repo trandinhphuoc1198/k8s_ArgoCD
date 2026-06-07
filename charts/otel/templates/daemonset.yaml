@@ -209,6 +209,11 @@ spec:
             field: attributes.level
             if: 'attributes.level != nil'
           - type: remove
+            field: attributes.taskName
+            if: 'attributes.taskName != nil'
+          - type: remove
+            field: attributes.log.file.path
+          - type: remove
             field: attributes.timestamp
             if: 'attributes.timestamp != nil'
           - type: remove
@@ -273,8 +278,8 @@ spec:
         error_mode: ignore
         traces:
           span:
-            # Drop ASGI send noise
-            - 'kind == "INTERNAL" and name =~ ".*http send$"'
+            - 'attributes["asgi.event.type"] == "http.response.start"'
+            - 'attributes["asgi.event.type"] == "http.response.body"'
             - 'name == "GET /metrics"'
             - 'name == "GET /metrics http send"'
             - 'attributes["http.target"] == "/health"'
