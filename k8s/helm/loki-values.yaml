@@ -236,12 +236,18 @@ podDisruptionBudget:
   enabled: false                   # enable if replicas > 1
 
 memcached:
-  enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 
 resultsCache:
-  enabled: false
+  enabled: enabled
   # -- Amount of memory allocated to results-cache for object storage (in MB).
-  allocatedMemory: 200
+  allocatedMemory: 500
   # -- Amount of cpu allocated to results-cache for object storage (in integer or millicores).
   allocatedCPU: 200m
   # -- Maximum item results-cache for memcached (in MB).
