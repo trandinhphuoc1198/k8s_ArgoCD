@@ -161,7 +161,7 @@ ingester:
   persistence:
     enabled: true
     storageClass: standard   # override via --set at deploy time using $STORAGE_CLASS
-    size: 10Gi
+    size: 1Gi
     accessModes:
       - ReadWriteOnce
 
@@ -256,7 +256,7 @@ compactor:
   persistence:
     enabled: true
     storageClass: standard
-    size: 5Gi
+    size: 1Gi
     accessModes:
       - ReadWriteOnce
 
