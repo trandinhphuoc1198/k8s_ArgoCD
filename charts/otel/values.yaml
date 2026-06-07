@@ -101,7 +101,7 @@ collectorDeployment:
 backends:
   # Console / stdout debug exporter — turn off in production
   debug:
-    enabled: true
+    enabled: false
     verbosity: detailed
     samplingInitial: 100
     samplingThereafter: 500
