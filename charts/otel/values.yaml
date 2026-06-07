@@ -61,7 +61,7 @@ collectorDeployment:
       memory: 512Mi
     requests:
       cpu: 250m
-      memory: 126Mi
+      memory: 128Mi
 
   # ---------------------------------------------------------------------------
   # Tail-sampling
@@ -103,8 +103,8 @@ backends:
   debug:
     enabled: true
     verbosity: detailed
-    samplingInitial: 1000
-    samplingThereafter: 1000
+    samplingInitial: 100
+    samplingThereafter: 500
 
   # Jaeger — receives traces via OTLP/gRPC
   jaeger:
@@ -124,9 +124,9 @@ backends:
 
   # Grafana Loki — logs backend
   # Receives logs from the aggregator via the loki exporter.
-  # Set enabled: true once Loki is deployed (see k8s/helm/loki-values.yaml).
+  # Push endpoint points at the Loki gateway (nginx) which routes to distributors.
   loki:
-    enabled: false
+    enabled: true
     endpoint: "http://loki-gateway.observability.svc.cluster.local:3100/loki/api/v1/push"
 
   # Generic OTLP endpoint (e.g. Grafana Cloud, Honeycomb, Datadog)
