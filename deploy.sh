@@ -64,6 +64,7 @@ kubectl rollout status daemonset/ebs-csi-node        -n kube-system --timeout=12
 # ─────────────────────────────────────────────────────────────────────────────
 helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
   --namespace "$MONITORING_NAMESPACE" \
+  --set fullnameOverride=monitoring \
   --create-namespace \
   --values "$ROOT_DIR/k8s/helm/kube-prometheus-stack-values.yaml" \
   --set grafana.persistence.storageClassName="$STORAGE_CLASS" \
@@ -180,6 +181,7 @@ if [[ "$SKIP_LOKI" != "true" ]]; then
     --version   "$LOKI_VERSION" \
     --values    "$ROOT_DIR/k8s/helm/loki-values.yaml" \
     --wait \
+    --set fullnameOverride=loki \
     --timeout 5m
 
   echo "Waiting for Loki distributor…"
