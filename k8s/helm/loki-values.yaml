@@ -235,7 +235,8 @@ singleBinary:
 podDisruptionBudget:
   enabled: false                   # enable if replicas > 1
 
-
+memcached:
+  enabled: false
 
 resultsCache:
   enabled: false
