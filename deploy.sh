@@ -17,7 +17,7 @@ SKIP_OTEL="${SKIP_OTEL:-false}"
 SKIP_TEMPO="${SKIP_TEMPO:-false}"
 TEMPO_VERSION="${TEMPO_VERSION:-1.9.0}"
 SKIP_LOKI="${SKIP_LOKI:-false}"
-LOKI_VERSION="${LOKI_VERSION:-7.1.0}"
+LOKI_VERSION="${LOKI_VERSION:-7.0.0}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -184,21 +184,6 @@ if [[ "$SKIP_LOKI" != "true" ]]; then
     --set fullnameOverride=loki \
     --timeout 5m
 
-  echo "Waiting for Loki distributor…"
-  kubectl rollout status deployment/loki-distributed-distributor -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
-    || echo "Warning: loki-distributor not ready yet."
-
-  echo "Waiting for Loki query-frontend…"
-  kubectl rollout status deployment/loki-distributed-query-frontend -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
-    || echo "Warning: loki-query-frontend not ready yet."
-
-  echo "Waiting for Loki ingester…"
-  kubectl rollout status statefulset/loki-distributed-ingester -n "$OTEL_NAMESPACE" --timeout=180s 2>/dev/null \
-    || echo "Warning: loki-ingester not ready yet."
-
-  echo "Waiting for Loki gateway…"
-  kubectl rollout status deployment/loki-distributed-gateway -n "$OTEL_NAMESPACE" --timeout=120s 2>/dev/null \
-    || echo "Warning: loki-gateway not ready yet."
 else
   echo "⏭  SKIP_LOKI=true — skipping Grafana Loki."
 fi
@@ -217,73 +202,3 @@ if [[ -n "$APP_VALUES_FILE" ]]; then
 fi
 
 helm "${app_args[@]}"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Summary
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "Deployment finished."
-echo "Verify NodePorts: kubectl get svc -n ${INGRESS_NAMESPACE}"
-echo "Verify app and HPA: kubectl get deploy,svc,ing,hpa -n ${APP_NAMESPACE}"
-echo "Verify metrics: kubectl top pods -n ${APP_NAMESPACE}"
-echo "Verify monitoring: kubectl get pods,pvc -n ${MONITORING_NAMESPACE}"
-echo ""
-echo "Cluster Status:"
-echo ""
-echo "📊 Metrics Server:"
-kubectl get deployment -n kube-system metrics-server
-echo ""
-echo "🔀 Ingress Controller:"
-kubectl get deployment -n ingress-nginx ingress-nginx-controller
-echo ""
-echo "🚀 FastAPI Application:"
-kubectl get deployment -n fastapi fastapi-app
-kubectl get pods -n fastapi
-echo ""
-echo "Autoscaling Status:"
-kubectl get hpa -n fastapi
-echo ""
-echo "Service & Ingress:"
-kubectl get svc,ingress -n fastapi
-echo ""
-echo "📡 Ingress Controller Service:"
-kubectl get svc -n ingress-nginx ingress-nginx-controller
-echo ""
-
-if [[ "$SKIP_OTEL" != "true" ]]; then
-  echo "🔭 OpenTelemetry Stack:"
-  kubectl get opentelemetrycollector -n "$OTEL_NAMESPACE" 2>/dev/null || true
-  kubectl get instrumentation         -n "$OTEL_NAMESPACE" 2>/dev/null || true
-  echo ""
-fi
-
-if [[ "$SKIP_TEMPO" != "true" ]]; then
-  echo "🟠 Grafana Tempo:"
-  kubectl get pods -n "$OTEL_NAMESPACE" -l app.kubernetes.io/name=tempo 2>/dev/null || true
-  echo ""
-fi
-
-if [[ "$SKIP_LOKI" != "true" ]]; then
-  echo "🟡 Grafana Loki:"
-  kubectl get pods -n "$OTEL_NAMESPACE" -l app.kubernetes.io/name=loki-distributed 2>/dev/null || true
-  echo ""
-fi
-
-echo "💡 Next Steps:"
-echo "  1. Check your FastAPI pods are in 'Running' state: kubectl get pods -n fastapi"
-echo "  2. Check metrics are working: kubectl top pods -n fastapi (may take 1-2 min)"
-echo "  3. Get your LoadBalancer IP: kubectl get svc -n ingress-nginx"
-echo "  4. Access your app: curl http://fast-api-k8s-1011545333.ap-northeast-1.elb.amazonaws.com/"
-echo "  5. Monitor HPA: kubectl get hpa -n fastapi --watch"
-if [[ "$SKIP_OTEL" != "true" ]]; then
-  echo "  6. View traces in Grafana: open Explore → select Tempo datasource"
-  echo "  7. Tail collector logs: kubectl logs -l app.kubernetes.io/name=otel-collector-agg-collector -n ${OTEL_NAMESPACE} -f"
-fi
-if [[ "$SKIP_TEMPO" != "true" ]]; then
-  echo "  8. Tempo query-frontend: kubectl port-forward svc/tempo-query-frontend 3200:3200 -n ${OTEL_NAMESPACE}"
-fi
-if [[ "$SKIP_LOKI" != "true" ]]; then
-  echo "  9. View logs in Grafana: open Explore → select Loki datasource"
-  echo " 10. LogQL example: {namespace=\"fastapi\"} | json | trace_id != \"\"'"
-fi
-echo ""

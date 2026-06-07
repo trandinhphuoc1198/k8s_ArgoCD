@@ -203,18 +203,14 @@ serviceAccount:
 # -----------------------------------------------------------------------------
 singleBinary:
   replicas: 1
-  extraEnv:
-    []
-    # - name: AWS_ACCESS_KEY_ID
-    #   valueFrom:
-    #     secretKeyRef:
-    #       name: loki-s3-secret
-    #       key: access_key_id
-    # - name: AWS_SECRET_ACCESS_KEY
-    #   valueFrom:
-    #     secretKeyRef:
-    #       name: loki-s3-secret
-    #       key: secret_access_key
+  persistence:
+    enabled: false
+  extraVolumes:
+    - name: loki-wal
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: loki-wal
+      mountPath: /var/loki/wal
 
 # -----------------------------------------------------------------------------
 # PodDisruptionBudget
