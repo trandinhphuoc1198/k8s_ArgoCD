@@ -9,7 +9,7 @@ grafana:
     enabled: true
     accessModes:
       - ReadWriteOnce
-    size: 2Gi
+    size: 1Gi
     storageClassName: ebs-csi
 
   service:
@@ -44,7 +44,7 @@ prometheus:
           storageClassName: ebs-csi
           resources:
             requests:
-              storage: 2Gi
+              storage: 1Gi
 
     resources:
       requests:
