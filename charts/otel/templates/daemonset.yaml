@@ -278,8 +278,6 @@ spec:
         error_mode: ignore
         traces:
           span:
-            - 'attributes["asgi.event.type"] == "http.response.start"'
-            - 'attributes["asgi.event.type"] == "http.response.body"'
             - 'name == "GET /metrics"'
             - 'name == "GET /metrics http send"'
             - 'attributes["http.target"] == "/health"'
