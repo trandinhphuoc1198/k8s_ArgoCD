@@ -194,7 +194,7 @@ spec:
       # metadata so Grafana can render "Jump to trace" links from log lines.
       otlphttp:
         endpoint: {{ .Values.backends.loki.endpoint | quote }}
-        logs_endpoint: http://loki-gateway.observability.svc.cluster.local:3100/loki/api/v1/push
+        logs_endpoint: http://loki-gateway.observability.svc.cluster.local:3100/loki/api/v1/22push
         encoding: json
         headers:
           Content-Type: application/json
