@@ -194,11 +194,11 @@ spec:
       # metadata so Grafana can render "Jump to trace" links from log lines.
       otlphttp:
         endpoint: {{ .Values.backends.loki.endpoint | quote }}
-        default_labels_enabled:
-          exporter: false   # don't add an "exporter" label — noise in Loki
-          job: true         # maps to k8s.namespace.name/k8s.pod.name
-          instance: true
-          level: true       # severity_text → Loki "level" label
+        # default_labels_enabled:
+        #   exporter: false   # don't add an "exporter" label — noise in Loki
+        #   job: true         # maps to k8s.namespace.name/k8s.pod.name
+        #   instance: true
+        #   level: true       # severity_text → Loki "level" label
         # Promote these OTel resource attributes to Loki stream labels.
         # Keep the cardinality low — high-cardinality labels degrade Loki.
         labels:
