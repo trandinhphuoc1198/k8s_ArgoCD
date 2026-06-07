@@ -32,7 +32,7 @@ data:
         uid: tempo
         access: proxy
         # query-frontend HTTP port — Grafana proxies all trace queries here
-        url: http://tempo-query-frontend.{{ .Values.global.namespace }}.svc.cluster.local:3200
+        url: http://tempo-query-frontend.{{ .Values.global.namespace }}.svc.cluster.local:3100
         version: 1
         isDefault: false
         editable: false
