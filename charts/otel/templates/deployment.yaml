@@ -26,6 +26,7 @@ metadata:
     {{- include "otel.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector-aggregator
 spec:
+  image: otel/opentelemetry-collector-contrib:0.153:0
   mode: deployment
   replicas: {{ .Values.collectorDeployment.replicas }}
   serviceAccount: otel-collector
@@ -192,7 +193,7 @@ spec:
       # The loki exporter maps OTel resource/log attributes to Loki labels and
       # log line fields. trace_id and span_id are preserved as structured
       # metadata so Grafana can render "Jump to trace" links from log lines.
-      otlphttp:
+      loki:
         endpoint: {{ .Values.backends.loki.endpoint | quote }}
         # # default_labels_enabled:
         # #   exporter: false   # don't add an "exporter" label — noise in Loki
