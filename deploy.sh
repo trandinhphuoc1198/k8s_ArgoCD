@@ -111,7 +111,7 @@ if [[ "$SKIP_OTEL" != "true" ]]; then
   # The admission webhook must be Ready before we apply the CRs —
   # otherwise the Instrumentation / OpenTelemetryCollector resources are rejected.
   echo "Waiting for OTel Operator webhook to become ready…"
-  kubectl rollout status deployment/opentelemetry-operator-controller-manager \
+  kubectl rollout status deployment/opentelemetry-operator \
     -n "$OTEL_NAMESPACE" --timeout=120s
 
   echo "🔭 Installing OTel Collectors + Instrumentation CR…"
