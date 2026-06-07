@@ -18,8 +18,6 @@ deploymentMode: SingleBinary
 
 singleBinary:
   replicas: 1
-  podLabels:
-    app.kubernetes.io/part-of: memberlist
   resources:
     requests:
       cpu: 500m
@@ -52,14 +50,6 @@ loki:
     repository: grafana/loki
     tag: "3.5.0"                   # pin to latest stable 3.x
   structuredConfig:
-    memberlist:
-      join_members:
-        - loki-memberlist.observability.svc.cluster.local:7946
-      dead_node_reclaim_time: 30s
-      gossip_to_dead_nodes_time: 15s
-      left_ingesters_timeout: 30s
-      bind_addr: ['0.0.0.0']
-      bind_port: 7946
     distributor:
       otlp_config:
         default_resource_attributes_as_index_labels:
