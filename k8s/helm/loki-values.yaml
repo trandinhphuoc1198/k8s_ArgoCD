@@ -217,3 +217,12 @@ singleBinary:
 # -----------------------------------------------------------------------------
 podDisruptionBudget:
   enabled: false                   # enable if replicas > 1
+
+
+
+resultsCache:
+  # -- Amount of memory allocated to results-cache for object storage (in MB).
+  allocatedMemory: 200
+  # -- Amount of cpu allocated to results-cache for object storage (in integer or millicores).
+  allocatedCPU: 200m
+  # -- Maximum item results-cache for memcached (in MB).
