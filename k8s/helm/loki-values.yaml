@@ -212,22 +212,7 @@ serviceAccount:
     # For IRSA (AWS IAM Roles for Service Accounts), add:
     # eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>
 
-# -----------------------------------------------------------------------------
-# Extra env vars (alternative to inline credentials)
-# Use this + a Kubernetes Secret instead of hardcoding keys above
-# -----------------------------------------------------------------------------
-singleBinary:
-  replicas: 1
-  persistence:
-    enabled: false
-  extraVolumes:
-    - name: loki-wal
-      emptyDir: {}
-  extraVolumeMounts:
-    - name: loki-wal
-      mountPath: /var/loki/wal
-    - name: loki-data
-      mountPath: /var/loki
+
 
 # -----------------------------------------------------------------------------
 # PodDisruptionBudget
