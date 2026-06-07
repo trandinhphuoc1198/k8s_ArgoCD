@@ -14,7 +14,7 @@ APP_VALUES_FILE="${APP_VALUES_FILE:-}"
 
 OTEL_OPERATOR_VERSION="${OTEL_OPERATOR_VERSION:-0.64.2}"
 TEMPO_VERSION="${TEMPO_VERSION:-1.9.0}"
-LOKI_VERSION="${LOKI_VERSION:-0.79.0}" # Note: Ensure this matches the community chart version you need
+LOKI_VERSION="${LOKI_VERSION:-0.79.0}" 
 
 # ── Toggles ──────────────────────────────────────────────────────────────────
 SKIP_OTEL="${SKIP_OTEL:-false}"
@@ -24,6 +24,12 @@ SKIP_LOKI="${SKIP_LOKI:-false}"
 # ── Helper Functions ─────────────────────────────────────────────────────────
 info() {
   echo -e "\n\033[1;34m==>\033[0m \033[1m$1\033[0m"
+}
+
+# NEW: Wrapper function to print the command before executing it
+run_cmd() {
+  echo -e "  \033[90m$ $*\033[0m" # Prints the command in dim gray
+  "$@"
 }
 
 require_command() {
@@ -39,7 +45,8 @@ wait_for_rollout() {
   local timeout="${3:-120s}"
   
   echo "  ⏳ Waiting for ${resource} in ${namespace}..."
-  if ! kubectl rollout status "${resource}" -n "${namespace}" --timeout="${timeout}" 2>/dev/null; then
+  # Use run_cmd inside the rollout check as well
+  if ! run_cmd kubectl rollout status "${resource}" -n "${namespace}" --timeout="${timeout}"; then
     echo "  ⚠️ Warning: ${resource} not ready or not found."
   fi
 }
@@ -51,21 +58,20 @@ require_command kubectl
 # Helm Repositories
 # ─────────────────────────────────────────────────────────────────────────────
 info "Updating Helm repositories…"
-helm repo add metrics-server     https://kubernetes-sigs.github.io/metrics-server/          >/dev/null 2>&1 || true
-helm repo add ingress-nginx      https://kubernetes.github.io/ingress-nginx                 >/dev/null 2>&1 || true
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts       >/dev/null 2>&1 || true
-helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver       >/dev/null 2>&1 || true
-helm repo add open-telemetry     https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
-helm repo add grafana            https://grafana.github.io/helm-charts                      >/dev/null 2>&1 || true
-# Added the new Grafana Community repo for Loki Distributed
-helm repo add grafana-community  https://grafana-community.github.io/helm-charts            >/dev/null 2>&1 || true
-helm repo update
+run_cmd helm repo add metrics-server     https://kubernetes-sigs.github.io/metrics-server/          >/dev/null 2>&1 || true
+run_cmd helm repo add ingress-nginx      https://kubernetes.github.io/ingress-nginx                 >/dev/null 2>&1 || true
+run_cmd helm repo add prometheus-community https://prometheus-community.github.io/helm-charts       >/dev/null 2>&1 || true
+run_cmd helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver       >/dev/null 2>&1 || true
+run_cmd helm repo add open-telemetry     https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
+run_cmd helm repo add grafana            https://grafana.github.io/helm-charts                      >/dev/null 2>&1 || true
+run_cmd helm repo add grafana-community  https://grafana-community.github.io/helm-charts            >/dev/null 2>&1 || true
+run_cmd helm repo update
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Metrics Server
 # ─────────────────────────────────────────────────────────────────────────────
 info "Installing Metrics Server…"
-helm upgrade --install metrics-server metrics-server/metrics-server \
+run_cmd helm upgrade --install metrics-server metrics-server/metrics-server \
   --namespace kube-system \
   --values "$ROOT_DIR/k8s/helm/metrics-server-values.yaml"
 
@@ -75,7 +81,7 @@ wait_for_rollout "deployment/metrics-server" "kube-system"
 # AWS EBS CSI Driver
 # ─────────────────────────────────────────────────────────────────────────────
 info "Installing AWS EBS CSI Driver…"
-helm upgrade --install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver \
+run_cmd helm upgrade --install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver \
   --namespace kube-system \
   --values "$ROOT_DIR/k8s/helm/ebs-csi-values.yaml"
 
@@ -86,7 +92,7 @@ wait_for_rollout "daemonset/ebs-csi-node" "kube-system"
 # Kube Prometheus Stack
 # ─────────────────────────────────────────────────────────────────────────────
 info "Installing Kube-Prometheus-Stack…"
-helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+run_cmd helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
   --namespace "$MONITORING_NAMESPACE" \
   --set fullnameOverride=monitoring \
   --create-namespace \
@@ -97,6 +103,7 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
 wait_for_rollout "deployment/monitoring-operator" "$MONITORING_NAMESPACE"
 wait_for_rollout "deployment/kube-prometheus-stack-grafana" "$MONITORING_NAMESPACE"
 
+echo -e "  \033[90m$ kubectl get statefulset -n \"$MONITORING_NAMESPACE\" ...\033[0m"
 PROM_SS=$(kubectl get statefulset -n "$MONITORING_NAMESPACE" -l "app.kubernetes.io/name=prometheus" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
 if [[ -n "$PROM_SS" ]]; then
   wait_for_rollout "statefulset/${PROM_SS}" "$MONITORING_NAMESPACE"
@@ -108,7 +115,7 @@ fi
 # Ingress NGINX
 # ─────────────────────────────────────────────────────────────────────────────
 info "Installing Ingress NGINX…"
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+run_cmd helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace "$INGRESS_NAMESPACE" \
   --create-namespace \
   --values "$ROOT_DIR/k8s/helm/ingress-nginx-values.yaml"
@@ -120,9 +127,11 @@ wait_for_rollout "deployment/ingress-nginx-controller" "$INGRESS_NAMESPACE"
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "$SKIP_OTEL" != "true" ]]; then
   info "Installing OpenTelemetry Operator v${OTEL_OPERATOR_VERSION}…"
+  
+  echo -e "  \033[90m$ kubectl create namespace $OTEL_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -\033[0m"
   kubectl create namespace "$OTEL_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-  helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
+  run_cmd helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
     --namespace "$OTEL_NAMESPACE" \
     --version   "$OTEL_OPERATOR_VERSION" \
     --values    "$ROOT_DIR/k8s/helm/otel-operator-values.yaml" \
@@ -132,7 +141,7 @@ if [[ "$SKIP_OTEL" != "true" ]]; then
   wait_for_rollout "deployment/opentelemetry-operator" "$OTEL_NAMESPACE"
 
   info "Installing OTel Collectors + Instrumentation CR…"
-  helm upgrade --install otel "$ROOT_DIR/charts/otel" \
+  run_cmd helm upgrade --install otel "$ROOT_DIR/charts/otel" \
     --namespace "$OTEL_NAMESPACE" \
     --values    "$ROOT_DIR/charts/otel/values.yaml" \
     --wait \
@@ -149,7 +158,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "$SKIP_TEMPO" != "true" ]]; then
   info "Installing Grafana Tempo Distributed v${TEMPO_VERSION}…"
-  helm upgrade --install tempo grafana/tempo-distributed \
+  run_cmd helm upgrade --install tempo grafana/tempo-distributed \
     --namespace "$OTEL_NAMESPACE" \
     --version   "$TEMPO_VERSION" \
     --values    "$ROOT_DIR/k8s/helm/tempo-values.yaml" \
@@ -170,15 +179,13 @@ fi
 if [[ "$SKIP_LOKI" != "true" ]]; then
   info "Installing Grafana Loki Distributed v${LOKI_VERSION}…"
   
-  # Note the chart reference is updated to grafana-community/loki-distributed
-  helm upgrade --install loki grafana-community/loki-distributed \
+  run_cmd helm upgrade --install loki grafana-community/loki-distributed \
     --namespace "$OTEL_NAMESPACE" \
     --version   "$LOKI_VERSION" \
     --values    "$ROOT_DIR/k8s/helm/loki-values.yaml" \
     --wait \
     --timeout 5m
 
-  # Added specific rollout checks for the distributed Loki microservices
   wait_for_rollout "deployment/loki-loki-distributed-gateway" "$OTEL_NAMESPACE"
   wait_for_rollout "deployment/loki-loki-distributed-distributor" "$OTEL_NAMESPACE"
   wait_for_rollout "statefulset/loki-loki-distributed-ingester" "$OTEL_NAMESPACE" "180s"
@@ -200,6 +207,7 @@ if [[ -n "$APP_VALUES_FILE" ]]; then
   app_args+=(--values "$APP_VALUES_FILE")
 fi
 
-helm "${app_args[@]}"
+# Expand the array explicitly so it prints properly with run_cmd
+run_cmd helm "${app_args[@]}"
 
 info "✅ Deployment script completed successfully."
