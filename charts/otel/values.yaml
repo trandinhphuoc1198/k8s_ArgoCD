@@ -103,8 +103,8 @@ backends:
   debug:
     enabled: true
     verbosity: detailed
-    samplingInitial: 2
-    samplingThereafter: 500
+    samplingInitial: 1000
+    samplingThereafter: 1000
 
   # Jaeger — receives traces via OTLP/gRPC
   jaeger:
