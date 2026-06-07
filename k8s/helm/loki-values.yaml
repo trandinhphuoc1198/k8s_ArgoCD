@@ -118,6 +118,8 @@ loki:
 # ---------------------------------------------------------------------------
 distributor:
   replicas: 2
+  maxUnavailable: 2
+
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -265,6 +267,8 @@ compactor:
 indexGateway:
   enabled: true
   replicas: 2
+  maxUnavailable: 2
+
 
   resources:
     requests:
