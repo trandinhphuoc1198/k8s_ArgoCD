@@ -1,4 +1,6 @@
 loki:
+  persistence:
+    enabled: false
   commonConfig:
     replication_factor: 1
   storage:
