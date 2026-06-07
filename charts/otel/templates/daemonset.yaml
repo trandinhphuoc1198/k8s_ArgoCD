@@ -213,6 +213,7 @@ spec:
             if: 'attributes.taskName != nil'
           - type: remove
             field: attributes.log.file.path
+            if: 'attributes["log.file.path"] != nil'
           - type: remove
             field: attributes.timestamp
             if: 'attributes.timestamp != nil'
