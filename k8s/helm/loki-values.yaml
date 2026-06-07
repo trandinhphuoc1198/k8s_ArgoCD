@@ -221,6 +221,7 @@ podDisruptionBudget:
 
 
 resultsCache:
+  enabled: false
   # -- Amount of memory allocated to results-cache for object storage (in MB).
   allocatedMemory: 200
   # -- Amount of cpu allocated to results-cache for object storage (in integer or millicores).
