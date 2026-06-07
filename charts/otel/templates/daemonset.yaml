@@ -287,8 +287,6 @@ spec:
             - 'attributes["url.path"] == "/readyz"'
             - 'attributes["url.path"] == "/metrics"'
             - 'attributes["http.user_agent"] == "ELB-HealthChecker/2.0"'
-            - 'attributes["http.target"] == "/"'
-
         logs:
           log_record:
             - 'attributes["http.path"] == "/health"'
