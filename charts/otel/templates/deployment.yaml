@@ -192,7 +192,7 @@ spec:
       # The loki exporter maps OTel resource/log attributes to Loki labels and
       # log line fields. trace_id and span_id are preserved as structured
       # metadata so Grafana can render "Jump to trace" links from log lines.
-      loki:
+      otlphttp:
         endpoint: {{ .Values.backends.loki.endpoint | quote }}
         default_labels_enabled:
           exporter: false   # don't add an "exporter" label — noise in Loki
@@ -309,7 +309,7 @@ spec:
             - debug
             {{- end }}
             {{- if .Values.backends.loki.enabled }}
-            - loki
+            - otlphttp
             {{- end }}
             {{- if .Values.backends.otlpExternal.enabled }}
             - otlp/external
