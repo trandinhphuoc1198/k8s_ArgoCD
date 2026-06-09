@@ -1,0 +1,111 @@
+# ──────────────────────────────────────────────
+# PostgreSQL Chart — values.yaml
+# Deployed via CloudNativePG operator
+# Namespace: db
+# ──────────────────────────────────────────────
+
+cluster:
+  name: pg-cluster
+
+  # PostgreSQL major version (matches appVersion in Chart.yaml)
+  postgresVersion: 16
+
+  # 1 primary + 1 replica = 2 instances total
+  instances: 2
+
+  # Database and owner created automatically on bootstrap
+  database: appdb
+  owner: appuser        # matches the secret below
+
+  # Image — use the official CNPG image
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.3
+
+  storage:
+    size: 1Gi
+    storageClass: ebs-csi   # your EBS CSI gp3 StorageClass
+
+  # WAL on same volume (keep simple for 20 Gi tier)
+  walStorage:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+  # PostgreSQL tuning (safe defaults for EC2 instance)
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "128MB"
+      effective_cache_size: "512MB"
+      maintenance_work_mem: "64MB"
+      wal_level: "logical"         # required by CNPG replication
+      max_wal_senders: "10"
+      max_replication_slots: "10"
+
+  # Affinity: spread primary and replica across nodes when possible
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: preferred  # soft — won't block on single-node dev
+
+  # Maintenance window (UTC) — operator can do rolling updates here
+  nodeMaintenanceWindow:
+    inProgress: false
+    reusePVC: true
+
+# ──────────────────────────────────────────────
+# PgBouncer Pooler (transaction mode)
+# Sits between FastAPI and the Cluster
+# ──────────────────────────────────────────────
+pooler:
+  enabled: true
+  name: pg-pooler
+  instances: 2            # 2 pooler pods for HA
+  poolMode: transaction   # best for FastAPI async workloads
+  maxClientConn: 200
+  defaultPoolSize: 20
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ──────────────────────────────────────────────
+# Credentials — values here are defaults only.
+# Override via --set or a separate secret file.
+# The actual Secret is rendered in secret.yaml.
+# ──────────────────────────────────────────────
+secret:
+  name: pg-app-secret
+  # Base64-encoded values — override at deploy time.
+  # Generate: echo -n 'yourpassword' | base64
+  username: YXBwdXNlcg==        # appuser
+  password: Y2hhbmdlbWU=        # changeme  ← CHANGE THIS
+
+# ──────────────────────────────────────────────
+# Monitoring
+# ──────────────────────────────────────────────
+monitoring:
+  enabled: true
+  # Must match the label kube-prometheus-stack uses to discover ServiceMonitors
+  prometheusRelease: kube-prometheus-stack
+  interval: 30s
+  scrapeTimeout: 10s
+
+# ──────────────────────────────────────────────
+# FastAPI integration hints (used in NOTES.txt)
+# ──────────────────────────────────────────────
+fastapi:
+  # The ClusterIP service FastAPI should connect to (via PgBouncer)
+  # Format: <pooler-name>.<namespace>.svc.cluster.local
+  host: pg-pooler-rw.db.svc.cluster.local
+  port: 5432
+  database: appdb

@@ -1,0 +1,47 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Patch for charts/fastapi-app/values.yaml
+# Add the following env block so FastAPI picks up the DB connection at runtime.
+# The password is read directly from the pg-app-secret in the db namespace
+# via an envFrom / valueFrom reference — no hard-coding needed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Add to your existing fastapi-app values.yaml:
+
+env:
+  # PostgreSQL connection (via PgBouncer ClusterIP)
+  - name: DB_HOST
+    value: "pg-pooler-rw.db.svc.cluster.local"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: "appdb"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: pg-app-secret   # must exist in the db namespace
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: pg-app-secret
+        key: password
+  # Convenience DSN for SQLAlchemy / asyncpg
+  # Note: If your framework prefers a single DATABASE_URL, build it in app code
+  # from the individual vars above to avoid embedding credentials in values.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cross-namespace secret access note:
+# Kubernetes Secrets are namespace-scoped.  pg-app-secret lives in 'db' but
+# your FastAPI pods are in a different namespace.
+#
+# Two clean options:
+#
+# Option A — Copy the secret with a one-liner in deploy.sh (simple):
+#   kubectl get secret pg-app-secret -n db -o yaml \
+#     | sed 's/namespace: db/namespace: <your-fastapi-ns>/' \
+#     | kubectl apply -f -
+#
+# Option B — Use External Secrets Operator or Reflector to sync automatically.
+#
+# Option C — Move FastAPI into the db namespace (not recommended; mixes concerns).
+# ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,48 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CloudNativePG Cluster deployed successfully!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cluster:   {{ .Values.cluster.name }}
+Namespace: {{ .Release.Namespace }}
+Instances: {{ .Values.cluster.instances }} (1 primary + 1 replica)
+
+── Connection (from FastAPI) ──────────────────────
+Via PgBouncer (recommended):
+  Host:     {{ .Values.pooler.name }}-rw.{{ .Release.Namespace }}.svc.cluster.local
+  Port:     5432
+  Database: {{ .Values.cluster.database }}
+  User:     {{ .Values.cluster.owner }}
+  Secret:   {{ .Values.secret.name }}
+
+DSN (add to FastAPI env):
+  DATABASE_URL=postgresql+asyncpg://appuser:<password>@{{ .Values.pooler.name }}-rw.{{ .Release.Namespace }}.svc.cluster.local:5432/{{ .Values.cluster.database }}
+
+Direct (bypass PgBouncer — avoid in production):
+  RW:  {{ .Values.cluster.name }}-rw.{{ .Release.Namespace }}.svc.cluster.local:5432
+  RO:  {{ .Values.cluster.name }}-ro.{{ .Release.Namespace }}.svc.cluster.local:5432
+
+── Check cluster status ───────────────────────────
+  kubectl get cluster -n {{ .Release.Namespace }}
+  kubectl get pods -n {{ .Release.Namespace }} -l cnpg.io/cluster={{ .Values.cluster.name }}
+
+── Retrieve superuser password ────────────────────
+  kubectl get secret {{ .Values.cluster.name }}-superuser \
+    -n {{ .Release.Namespace }} \
+    -o jsonpath='{.data.password}' | base64 -d
+
+── Retrieve app user password ─────────────────────
+  kubectl get secret {{ .Values.secret.name }} \
+    -n {{ .Release.Namespace }} \
+    -o jsonpath='{.data.password}' | base64 -d
+
+── Connect via psql (debug) ───────────────────────
+  kubectl exec -it {{ .Values.cluster.name }}-1 \
+    -n {{ .Release.Namespace }} \
+    -- psql -U {{ .Values.cluster.owner }} {{ .Values.cluster.database }}
+
+── Monitoring ─────────────────────────────────────
+  ServiceMonitor created for kube-prometheus-stack.
+  Import CNPG Grafana dashboards (IDs: 20417, 20485):
+    https://grafana.com/grafana/dashboards/20417
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
