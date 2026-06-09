@@ -1,9 +1,6 @@
 {{- if .Values.monitoring.enabled }}
 # ──────────────────────────────────────────────────────────────────────────────
-# ServiceMonitor — scrapes the CNPG built-in metrics exporter (port 9187)
-# The Cluster's enablePodMonitor=true creates a PodMonitor automatically,
-# but we add an explicit ServiceMonitor here for consistency with your
-# existing kube-prometheus-stack pattern (ServiceMonitor on every component).
+# ServiceMonitor — CloudNativePG Cluster metrics (port 9187)
 # ──────────────────────────────────────────────────────────────────────────────
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -12,20 +9,16 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "postgresql.labels" . | nindent 4 }}
-    # This label must match kube-prometheus-stack's serviceMonitorSelector
     {{- include "postgresql.monitoringLabels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      # CNPG labels every Cluster service with cnpg.io/cluster
       cnpg.io/cluster: {{ include "postgresql.clusterName" . }}
-
   namespaceSelector:
     matchNames:
       - {{ .Release.Namespace }}
-
   endpoints:
-    - port: metrics          # CNPG exposes this port on each pod's service
+    - port: metrics
       interval: {{ .Values.monitoring.interval }}
       scrapeTimeout: {{ .Values.monitoring.scrapeTimeout }}
       path: /metrics
@@ -33,26 +26,54 @@ spec:
 
 ---
 # ──────────────────────────────────────────────────────────────────────────────
-# ServiceMonitor — scrapes PgBouncer metrics exporter (port 9127)
+# ServiceMonitor — PgBouncer RW Pooler metrics (port 9127)
 # ──────────────────────────────────────────────────────────────────────────────
-{{- if .Values.pooler.enabled }}
+{{- if .Values.pooler.rw.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "postgresql.poolerName" . }}-metrics
+  name: {{ .Values.pooler.rw.name }}-metrics
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "postgresql.labels" . | nindent 4 }}
     {{- include "postgresql.monitoringLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer-rw
 spec:
   selector:
     matchLabels:
-      cnpg.io/poolerName: {{ include "postgresql.poolerName" . }}
-
+      cnpg.io/poolerName: {{ .Values.pooler.rw.name }}
   namespaceSelector:
     matchNames:
       - {{ .Release.Namespace }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.monitoring.interval }}
+      scrapeTimeout: {{ .Values.monitoring.scrapeTimeout }}
+      path: /metrics
+      scheme: http
+{{- end }}
 
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# ServiceMonitor — PgBouncer RO Pooler metrics (port 9127)
+# ──────────────────────────────────────────────────────────────────────────────
+{{- if .Values.pooler.ro.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.pooler.ro.name }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+    {{- include "postgresql.monitoringLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer-ro
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/poolerName: {{ .Values.pooler.ro.name }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
   endpoints:
     - port: metrics
       interval: {{ .Values.monitoring.interval }}

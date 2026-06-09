@@ -46,11 +46,12 @@ database:
   createSecret: true
   existingSecret: ""
   secretName: ""
-  host: "postgres.default.svc.cluster.local"
+  writehost: "pg-pooler-rw.db.svc.cluster.local"
+  readhost: "pg-pooler-ro.db.svc.cluster.local"
   port: "5432"
-  user: "app_user"
-  password: "change-me"
-  name: "app_db"
+  user: "appuser"
+  password: "changeme"
+  name: "appdb"
 
 podAnnotations: {}
 podLabels: {}

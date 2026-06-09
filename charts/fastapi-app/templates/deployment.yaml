@@ -39,11 +39,16 @@ spec:
               containerPort: {{ .Values.containerPort }}
               protocol: TCP
           env:
-            - name: DB_HOST
+            - name: DB_WRITER_HOST
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fastapi-app.databaseSecretName" . }}
-                  key: DB_HOST
+                  key: DB_WRITER_HOST
+            - name: DB_READER_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fastapi-app.databaseSecretName" . }}
+                  key: DB_READER_HOST
             - name: DB_PORT
               valueFrom:
                 secretKeyRef:

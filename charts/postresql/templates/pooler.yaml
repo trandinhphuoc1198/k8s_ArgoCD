@@ -1,45 +1,88 @@
-{{- if .Values.pooler.enabled }}
+{{- if .Values.pooler.rw.enabled }}
+# ══════════════════════════════════════════════════════════════════════════════
+# PgBouncer RW Pooler — routes to PRIMARY (writes)
+# FastAPI WRITE_DB_URL → pg-pooler-rw.db.svc.cluster.local:5432
+# ══════════════════════════════════════════════════════════════════════════════
 apiVersion: postgresql.cnpg.io/v1
 kind: Pooler
 metadata:
-  name: {{ include "postgresql.poolerName" . }}
+  name: {{ .Values.pooler.rw.name }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "postgresql.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer-rw
 spec:
-  # ── Point at the Cluster ───────────────────────────────
   cluster:
     name: {{ include "postgresql.clusterName" . }}
 
-  # Route to the primary (read-write).
-  # For read replicas, create a second Pooler with type: ro
+  # rw = always routes to the primary instance
   type: rw
 
-  # ── Pooler instances ───────────────────────────────────
-  instances: {{ .Values.pooler.instances }}
+  instances: {{ .Values.pooler.rw.instances }}
 
-  # ── PgBouncer config ───────────────────────────────────
   pgbouncer:
     poolMode: {{ .Values.pooler.poolMode }}
     parameters:
-      max_client_conn: "{{ .Values.pooler.maxClientConn }}"
-      default_pool_size: "{{ .Values.pooler.defaultPoolSize }}"
-      # Recommended for transaction mode with async frameworks
+      max_client_conn: "{{ .Values.pooler.rw.maxClientConn }}"
+      default_pool_size: "{{ .Values.pooler.rw.defaultPoolSize }}"
+      # Required for async frameworks (asyncpg, SQLAlchemy async)
       server_reset_query: ""
-      # Keep idle server connections alive
       server_idle_timeout: "600"
-      # Log slow queries (ms). 0 = disabled
+      # Abort transactions idle longer than this (seconds)
+      query_wait_timeout: "30"
       log_stats: "1"
 
-  # ── Resources ──────────────────────────────────────────
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pgbouncer-rw
     spec:
       containers:
         - name: pgbouncer
           resources:
-            {{- toYaml .Values.pooler.resources | nindent 12 }}
+            {{- toYaml .Values.pooler.rw.resources | nindent 12 }}
+{{- end }}
 
-  # ── Service: ClusterIP only (internal to cluster) ──────
-  # FastAPI connects to:
-  #   {{ .Values.pooler.name }}-rw.{{ .Release.Namespace }}.svc.cluster.local:5432
+---
+{{- if .Values.pooler.ro.enabled }}
+# ══════════════════════════════════════════════════════════════════════════════
+# PgBouncer RO Pooler — routes to REPLICA (reads)
+# FastAPI READ_DB_URL → pg-pooler-ro.db.svc.cluster.local:5432
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: {{ .Values.pooler.ro.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer-ro
+spec:
+  cluster:
+    name: {{ include "postgresql.clusterName" . }}
+
+  # ro = load-balances across all replica instances
+  type: ro
+
+  instances: {{ .Values.pooler.ro.instances }}
+
+  pgbouncer:
+    poolMode: {{ .Values.pooler.poolMode }}
+    parameters:
+      max_client_conn: "{{ .Values.pooler.ro.maxClientConn }}"
+      default_pool_size: "{{ .Values.pooler.ro.defaultPoolSize }}"
+      server_reset_query: ""
+      server_idle_timeout: "600"
+      query_wait_timeout: "30"
+      log_stats: "1"
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pgbouncer-ro
+    spec:
+      containers:
+        - name: pgbouncer
+          resources:
+            {{- toYaml .Values.pooler.ro.resources | nindent 12 }}
 {{- end }}
