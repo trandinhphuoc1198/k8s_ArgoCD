@@ -1,8 +1,8 @@
-replicaCount: 2
+replicaCount: 1
 
 image:
   repository: gintaku98/k8s_fastapi
-  tag: f13965808478e8e6a9620377c11975bb923b0e5d
+  tag: daf0612adf9b6220949abfc84a182b77c2534572
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -36,11 +36,43 @@ resources:
     cpu: 200m
     memory: 256Mi
 
-autoscaling:
+keda:
   enabled: true
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 5
-  targetCPUUtilizationPercentage: 50
+
+  # How often KEDA queries Prometheus (seconds)
+  pollingInterval: 30
+  # How long to wait after last trigger fires before scaling in (seconds)
+  cooldownPeriod: 60
+
+  prometheus:
+    # In-cluster Prometheus exposed by kube-prometheus-stack
+    serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+
+  # ── Scale-out / scale-in behaviour ─────────────────────────────────────────
+  scaleUp:
+    stabilizationWindowSeconds: 30   # react within 1 m of sustained load
+    maxPodsPerStep: 2                 # add at most 2 pods per step
+    periodSeconds: 60
+  scaleDown:
+    stabilizationWindowSeconds: 30  # wait 5 m of low load before removing pods
+    maxPodsPerStep: 2                 # remove 1 pod at a time
+    periodSeconds: 60
+
+  # ── Trigger thresholds ──────────────────────────────────────────────────────
+  triggers:
+    # Scale out when per-pod RPS exceeds this value
+    requestRate:
+      threshold: "10"
+
+    # Scale out when per-pod active (in-flight) requests exceed this value
+    activeRequests:
+      threshold: "10"
+
+    # Scale out when P95 latency (seconds) exceeds this value
+    p95Latency:
+      threshold: "0.5"
 
 database:
   createSecret: true

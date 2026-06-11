@@ -65,6 +65,7 @@ run_cmd helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-e
 run_cmd helm repo add open-telemetry     https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
 run_cmd helm repo add grafana            https://grafana.github.io/helm-charts                      >/dev/null 2>&1 || true
 run_cmd helm repo add grafana-community  https://grafana-community.github.io/helm-charts            >/dev/null 2>&1 || true
+run_cmd helm repo add kedacore           https://kedacore.github.io/charts                            >/dev/null 2>&1 || true
 run_cmd helm repo update
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -192,6 +193,19 @@ if [[ "$SKIP_LOKI" != "true" ]]; then
 else
   info "⏭  SKIP_LOKI=true — skipping Grafana Loki."
 fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KEDA
+# ─────────────────────────────────────────────────────────────────────────────
+info "Installing KEDA…"
+run_cmd helm upgrade --install keda kedacore/keda \
+  --namespace keda \
+  --create-namespace \
+  --values "$ROOT_DIR/k8s/helm/keda-values.yaml" \
+  --wait
+
+wait_for_rollout "deployment/keda-operator"               "keda"
+wait_for_rollout "deployment/keda-operator-metrics-apiserver" "keda"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FastAPI App
