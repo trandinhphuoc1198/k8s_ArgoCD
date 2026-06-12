@@ -1,6 +1,6 @@
 # values.yaml
 autoDiscovery:
-  clusterName: <YOUR_CLUSTER_NAME>   # must match ASG tag
+  clusterName: dev-k8s   # must match ASG tag
 
 awsRegion: ap-northeast-1            # change to your region
 
