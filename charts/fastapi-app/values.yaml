@@ -48,7 +48,7 @@ keda:
 
   prometheus:
     # In-cluster Prometheus exposed by kube-prometheus-stack
-    serverAddress: http://monitoring-prometheus.monitoring.svc:9090
+    serverAddress: http://monitoring-prometheus.monitoring.svc:9090/prometheus
 
   # ── Scale-out / scale-in behaviour ─────────────────────────────────────────
   scaleUp:
