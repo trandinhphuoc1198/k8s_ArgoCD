@@ -15,6 +15,7 @@ APP_VALUES_FILE="${APP_VALUES_FILE:-}"
 OTEL_OPERATOR_VERSION="${OTEL_OPERATOR_VERSION:-0.64.2}"
 TEMPO_VERSION="${TEMPO_VERSION:-1.9.0}"
 LOKI_VERSION="${LOKI_VERSION:-0.79.0}" 
+AUTO_SCALER_VERSION="${AUTO_SCALER_VERSION:-9.37.0}" 
 
 # ── Toggles ──────────────────────────────────────────────────────────────────
 SKIP_OTEL="${SKIP_OTEL:-false}"
@@ -76,6 +77,7 @@ run_cmd helm repo update
 info "Installing Auto scaler…"
 run_cmd helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
   --namespace kube-system \
+  --version "$AUTO_SCALER_VERSION" \
   --values "$ROOT_DIR/k8s/helm/auto-scaler-values.yaml"
 
 # ─────────────────────────────────────────────────────────────────────────────
