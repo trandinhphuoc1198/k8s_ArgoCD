@@ -24,6 +24,7 @@ extraArgs:
   skip-nodes-with-system-pods: true  # don't remove nodes running system pods
   balance-similar-node-groups: true  # balance across multiple ASGs evenly
   expander: least-waste               # scale-out strategy: pick ASG with least wasted resources
+  balancing-ignore-label: node-role.kubernetes.io/control-plane
 
 # Pod resources
 resources:
