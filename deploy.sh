@@ -58,6 +58,8 @@ require_command kubectl
 # Helm Repositories
 # ─────────────────────────────────────────────────────────────────────────────
 info "Updating Helm repositories…"
+
+run_cmd helm repo add autoscaler     https://kubernetes.github.io/autoscaler          >/dev/null 2>&1 || true
 run_cmd helm repo add metrics-server     https://kubernetes-sigs.github.io/metrics-server/          >/dev/null 2>&1 || true
 run_cmd helm repo add ingress-nginx      https://kubernetes.github.io/ingress-nginx                 >/dev/null 2>&1 || true
 run_cmd helm repo add prometheus-community https://prometheus-community.github.io/helm-charts       >/dev/null 2>&1 || true
@@ -67,6 +69,14 @@ run_cmd helm repo add grafana            https://grafana.github.io/helm-charts  
 run_cmd helm repo add grafana-community  https://grafana-community.github.io/helm-charts            >/dev/null 2>&1 || true
 run_cmd helm repo add kedacore           https://kedacore.github.io/charts                            >/dev/null 2>&1 || true
 run_cmd helm repo update
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auto scaler
+# ─────────────────────────────────────────────────────────────────────────────
+info "Installing Auto scaler…"
+run_cmd helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
+  --namespace kube-system \
+  --values "$ROOT_DIR/k8s/helm/auto-scaler-values.yaml"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Metrics Server
