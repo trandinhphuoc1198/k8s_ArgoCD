@@ -52,24 +52,7 @@ spec:
         threshold: {{ .Values.keda.triggers.requestRate.threshold | quote }}
         ignoreNullValues: "true"
 
-    # ── Trigger 2: In-flight (active) requests ────────────────────────────────
-    # http_requests_in_progress is a gauge of requests currently being handled.
-    # Scale out when the per-pod active request count exceeds the threshold.
-    - type: prometheus
-      metadata:
-        serverAddress: {{ .Values.keda.prometheus.serverAddress }}
-        metricName: fastapi_active_requests
-        query: |
-          sum(http_requests_in_progress{namespace="{{ .Release.Namespace }}"})
-          /
-          max(kube_deployment_status_replicas_ready{
-            namespace="{{ .Release.Namespace }}",
-            deployment="{{ include "fastapi-app.fullname" . }}"
-          })
-        threshold: {{ .Values.keda.triggers.activeRequests.threshold | quote }}
-        ignoreNullValues: "true"
-
-    # ── Trigger 3: P95 request duration ──────────────────────────────────────
+    # ── Trigger 2: P95 request duration ──────────────────────────────────────
     # Scale out when the 95th-percentile latency across all pods breaches the
     # threshold (seconds). Uses http_request_duration_seconds_bucket.
     - type: prometheus

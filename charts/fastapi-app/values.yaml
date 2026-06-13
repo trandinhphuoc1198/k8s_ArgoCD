@@ -66,10 +66,6 @@ keda:
     requestRate:
       threshold: "10"
 
-    # Scale out when per-pod active (in-flight) requests exceed this value
-    activeRequests:
-      threshold: "10"
-
     # Scale out when P95 latency (seconds) exceeds this value
     p95Latency:
       threshold: "0.5"
