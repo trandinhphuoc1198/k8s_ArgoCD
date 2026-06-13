@@ -7,6 +7,14 @@ storageClasses:
       encrypted: "true"
 
 controller:
+  replicaCount: 2
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app: ebs-csi-controller
   resources:
     requests:
       cpu: 50m

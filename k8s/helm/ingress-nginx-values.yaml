@@ -1,5 +1,12 @@
 controller:
   replicaCount: 2
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
   config:
       enable-opentelemetry: "true"
       otlp-collector-host: "otel-collector-ds-collector.observability.svc.cluster.local"
