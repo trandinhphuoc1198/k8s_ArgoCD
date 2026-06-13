@@ -92,7 +92,13 @@ resultsCache:
       cpu: 500m
       memory: 400Mi
 
-# gateway:
-#   nginxConfig:
-#     serverSnippet: |
-#       proxy_set_header X-Scope-OrgID fake;
+
+gateway:
+  nginxConfig:
+    httpSnippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+    serverSnippet: |
+      proxy_read_timeout 600s;
+      proxy_send_timeout 600s;
+      proxy_set_header X-Scope-OrgID fake;
