@@ -14,7 +14,7 @@ APP_VALUES_FILE="${APP_VALUES_FILE:-}"
 
 OTEL_OPERATOR_VERSION="${OTEL_OPERATOR_VERSION:-0.64.2}"
 TEMPO_VERSION="${TEMPO_VERSION:-1.9.0}"
-LOKI_VERSION="${LOKI_VERSION:-0.79.0}" 
+LOKI_VERSION="${LOKI_VERSION:-11.4.9}" 
 AUTO_SCALER_VERSION="${AUTO_SCALER_VERSION:-9.37.0}" 
 
 # ── Toggles ──────────────────────────────────────────────────────────────────
@@ -192,15 +192,15 @@ fi
 if [[ "$SKIP_LOKI" != "true" ]]; then
   info "Installing Grafana Loki Distributed v${LOKI_VERSION}…"
   
-  run_cmd helm upgrade --install loki grafana-community/loki-distributed \
+  run_cmd helm upgrade --install loki grafana-community/loki \
     --namespace "$OTEL_NAMESPACE" \
     --version   "$LOKI_VERSION" \
     --values    "$ROOT_DIR/k8s/helm/loki-values.yaml" \
     --wait \
     --timeout 5m
 
-  wait_for_rollout "deployment/loki-loki-distributed-gateway" "$OTEL_NAMESPACE"
-  wait_for_rollout "deployment/loki-loki-distributed-distributor" "$OTEL_NAMESPACE"
+  wait_for_rollout "deployment/loki-gateway" "$OTEL_NAMESPACE"
+  wait_for_rollout "statefulset/loki" "$OTEL_NAMESPACE"
   wait_for_rollout "statefulset/loki-loki-distributed-ingester" "$OTEL_NAMESPACE" "180s"
 else
   info "⏭  SKIP_LOKI=true — skipping Grafana Loki."

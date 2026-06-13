@@ -92,7 +92,7 @@ resultsCache:
       cpu: 500m
       memory: 400Mi
 
-gateway:
-  nginxConfig:
-    serverSnippet: |
-      proxy_set_header X-Scope-OrgID fake;
+# gateway:
+#   nginxConfig:
+#     serverSnippet: |
+#       proxy_set_header X-Scope-OrgID fake;
