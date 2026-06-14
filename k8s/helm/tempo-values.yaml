@@ -71,10 +71,12 @@ distributor:
     minReplicas: 1
     maxReplicas: 2
     targetCPUUtilizationPercentage: 60
-  config:
-    log_received_traces: true   # for debugging — disable in production
-    log_received_spans:
-      enabled: true
+  config: |
+    overrides:
+      defaults:
+        metrics_generator:
+          processors: ['service-graphs', 'span-metrics']
+        traceql_metrics: true
 
   resources:
     requests:
