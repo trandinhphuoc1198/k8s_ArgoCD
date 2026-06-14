@@ -9,14 +9,6 @@ cloudProvider: aws
 rbac:
   create: true
 
-# Scale-in settings
-scaleDown:
-  enabled: true
-  delayAfterAdd: 5m        # wait 10m after scale-out before considering scale-in
-  delayAfterDelete: 10s     # wait 10s after a node deletion
-  delayAfterFailure: 3m     # backoff on failure
-  unneededTime: 5m         # node must be unneeded for 10m before removal
-  utilizationThreshold: 0.5 # scale in if node utilization < 50%
 
 # Recommended extra flags
 extraArgs:
@@ -25,6 +17,11 @@ extraArgs:
   balance-similar-node-groups: true  # balance across multiple ASGs evenly
   expander: least-waste               # scale-out strategy: pick ASG with least wasted resources
   balancing-ignore-label: node-role.kubernetes.io/control-plane
+  scale-down-unneeded-time: 2m
+  scale-down-delay-after-add: 2m
+  scale-down-delay-after-delete: 0s
+  scale-down-delay-after-failure: 3m
+
 
 # Pod resources
 resources:
