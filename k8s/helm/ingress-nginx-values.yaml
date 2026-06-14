@@ -1,5 +1,5 @@
 controller:
-  replicaCount: 2
+  replicaCount: 1
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: kubernetes.io/hostname
