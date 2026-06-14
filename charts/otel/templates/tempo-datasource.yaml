@@ -50,12 +50,6 @@ data:
             datasourceUid: prometheus
             spanStartTimeShift: "-1m"
             spanEndTimeShift: "1m"
-            # ─── MISSING BLOCK FIXED: THIS DEFINES WHAT TRACE ATTRIBUTES MAP TO METRIC LABELS ───
-            tags:
-              - key: "http.target" # The tag key name inside your Tempo tracing span
-                value: "exported_endpoint" # The target label name inside your Prometheus metrics
-            # ─────────────────────────────────────────────────────────────────────────────────
-
             queries:
               - name: "Request rate"
                 query: "sum(rate(http_requests_total{exported_endpoint=\"${__span.tags[\"http.target\"]}\"}[5m]))"
