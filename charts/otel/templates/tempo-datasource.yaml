@@ -42,7 +42,7 @@ data:
             datasourceUid: loki     # set to your Loki datasource UID if using Loki
             spanStartTimeShift: "-1m"
             spanEndTimeShift: "1m"
-            tags: [{ key: 'k8s.namespace.name', value: 'k8s_namespace_name' }, { key: 'service.name' }]
+            tags: [{ key: 'k8s.namespace.name', value: 'k8s_namespace_name' }, { key: 'service.name', value: 'service_name'  }]
             filterByTraceID: true
             filterBySpanID: false
 
