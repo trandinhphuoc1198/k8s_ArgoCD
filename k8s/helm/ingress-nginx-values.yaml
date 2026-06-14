@@ -13,9 +13,6 @@ controller:
       otlp-collector-port: "4317"
       opentelemetry-trust-incoming-span: "true"
       opentelemetry-operation-name: "$request_method $uri"
-      opentelemetry-span-attributes: |
-            http.target=$upstream_uri
-            http.route=$upstream_uri
 
   service:
     type: NodePort
