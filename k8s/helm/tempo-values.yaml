@@ -71,12 +71,10 @@ distributor:
     minReplicas: 1
     maxReplicas: 2
     targetCPUUtilizationPercentage: 60
-  config: |
-    overrides:
-      defaults:
-        metrics_generator:
-          processors: ['service-graphs', 'span-metrics']
-        traceql_metrics: true
+  # config:
+  #   log_received_traces: true   # for debugging — disable in production
+  #   log_received_spans:
+  #     enabled: true
 
   resources:
     requests:
@@ -210,3 +208,9 @@ metaMonitoring:
 metricsGenerator:
   # -- Specifies whether a metrics-generator should be deployed
   enabled: true
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: ['service-graphs', 'span-metrics', 'local-blocks']
+      generate_native_histograms: both
