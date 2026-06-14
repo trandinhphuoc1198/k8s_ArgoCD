@@ -94,8 +94,9 @@ resultsCache:
       cpu: 500m
       memory: 400Mi
 
-
-# gateway:
-#   nginxConfig:
-#     serverSnippet: |
-#       proxy_set_header X-Scope-OrgID fake;
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels: {}        # extra labels for the ServiceMonitor
+    interval: 30s
+    scrapeTimeout: 10s
