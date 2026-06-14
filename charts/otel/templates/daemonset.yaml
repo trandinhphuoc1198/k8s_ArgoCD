@@ -276,8 +276,7 @@ spec:
         error_mode: ignore
         traces:
           span:
-            - 'name =~ "GET /health.*"'
-            - 'name =~ "GET /metric.*"'
+            - IsMatch(name, "GET /(health|metric).*")
             # - 'name == "GET /metrics"'
             # - 'name == "GET /health http send"'
             # - 'name == "GET /metrics http send"'
