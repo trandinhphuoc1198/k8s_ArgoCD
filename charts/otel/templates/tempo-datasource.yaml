@@ -61,6 +61,9 @@ data:
                 query: 'sum(rate(http_requests_total{exported_endpoint="${__span.tags.http.route}"}[5m]))'
               - name: "Error rate"
                 query: 'sum(rate(http_requests_total{exported_endpoint="${__span.tags.http_route}"}[5m]))'
+              - name: "Error rate2"
+                query: 'sum(rate(http_requests_total{exported_endpoint="$${__span.tags.http_route}"}[5m]))'
+                query: 'sum(rate(http_requests_total{exported_endpoint="$${__span.tags['http_route']}"}[5m]))'
               - name: "Latency (p95)"
                 query: 'histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{exported_endpoint="${__span.tags["http.target"]}"}[5m])))'
 
