@@ -83,12 +83,12 @@ run_cmd helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler 
 # ─────────────────────────────────────────────────────────────────────────────
 # Metrics Server
 # ─────────────────────────────────────────────────────────────────────────────
-info "Installing Metrics Server…"
-run_cmd helm upgrade --install metrics-server metrics-server/metrics-server \
-  --namespace kube-system \
-  --values "$ROOT_DIR/k8s/helm/metrics-server-values.yaml"
+# info "Installing Metrics Server…"
+# run_cmd helm upgrade --install metrics-server metrics-server/metrics-server \
+#   --namespace kube-system \
+#   --values "$ROOT_DIR/k8s/helm/metrics-server-values.yaml"
 
-wait_for_rollout "deployment/metrics-server" "kube-system"
+# wait_for_rollout "deployment/metrics-server" "kube-system"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AWS EBS CSI Driver
