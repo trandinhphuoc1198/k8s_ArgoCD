@@ -276,9 +276,11 @@ spec:
         error_mode: ignore
         traces:
           span:
-            - 'name == "GET /metrics"'
-            - 'name == "GET /health http send"'
-            - 'name == "GET /metrics http send"'
+            - 'name =~ "GET /health.*"'
+            - 'name =~ "GET /metric.*"'
+            # - 'name == "GET /metrics"'
+            # - 'name == "GET /health http send"'
+            # - 'name == "GET /metrics http send"'
             - 'attributes["http.target"] == "/health"'
             - 'attributes["http.target"] == "/healthz"'
             - 'attributes["http.target"] == "/readyz"'
