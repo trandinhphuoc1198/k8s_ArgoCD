@@ -35,6 +35,7 @@ data:
           maxLines: 1000
           timeout: 60
           httpHeaderName1: "X-Scope-OrgID"
+          httpHeaderValue1: "dev"
           derivedFields:
             - name: TraceID
               matcherType: label

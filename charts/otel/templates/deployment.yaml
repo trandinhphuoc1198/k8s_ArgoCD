@@ -195,7 +195,7 @@ spec:
       otlphttp:
         endpoint: {{ .Values.backends.loki.endpoint | quote }}
         headers:
-          X-Scope-OrgID: "fake"
+          X-Scope-OrgID: "dev"
 
       {{- end }}
 

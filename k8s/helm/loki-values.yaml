@@ -69,6 +69,8 @@ bloomBuilder:
   replicas: 0
 bloomGateway:
   replicas: 0
+lokiCanary:
+  kind: Deployment
 
 chunksCache:
   enabled: true
@@ -93,12 +95,7 @@ resultsCache:
       memory: 400Mi
 
 
-gateway:
-  nginxConfig:
-    httpSnippet: |
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
-    serverSnippet: |
-      proxy_read_timeout 600s;
-      proxy_send_timeout 600s;
-      proxy_set_header X-Scope-OrgID fake;
+# gateway:
+#   nginxConfig:
+#     serverSnippet: |
+#       proxy_set_header X-Scope-OrgID fake;
