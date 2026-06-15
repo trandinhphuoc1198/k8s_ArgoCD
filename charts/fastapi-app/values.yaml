@@ -5,8 +5,8 @@ image:
   tag: daf0612adf9b6220949abfc84a182b77c2534572
   pullPolicy: IfNotPresent
 
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: "fastapi-app"
+fullnameOverride: "fastapi-app"
 
 containerPort: 8000
 
