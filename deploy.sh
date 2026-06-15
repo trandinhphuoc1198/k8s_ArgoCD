@@ -225,7 +225,7 @@ wait_for_rollout "deployment/keda-operator-metrics-apiserver" "keda"
 # ─────────────────────────────────────────────────────────────────────────────
 info "Installing FastAPI Application…"
 app_args=(
-  upgrade --install fastapi-app "$ROOT_DIR/charts/fastapi-app"
+  upgrade --install fastapi "$ROOT_DIR/charts/fastapi-app"
   --namespace "$APP_NAMESPACE"
   --create-namespace
 )
