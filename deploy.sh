@@ -60,6 +60,7 @@ require_command kubectl
 # ─────────────────────────────────────────────────────────────────────────────
 info "Updating Helm repositories…"
 
+run_cmd helm repo add cilium             https://helm.cilium.io/                                   >/dev/null 2>&1 || true
 run_cmd helm repo add autoscaler     https://kubernetes.github.io/autoscaler          >/dev/null 2>&1 || true
 run_cmd helm repo add metrics-server     https://kubernetes-sigs.github.io/metrics-server/          >/dev/null 2>&1 || true
 run_cmd helm repo add ingress-nginx      https://kubernetes.github.io/ingress-nginx                 >/dev/null 2>&1 || true
@@ -70,6 +71,28 @@ run_cmd helm repo add grafana            https://grafana.github.io/helm-charts  
 run_cmd helm repo add grafana-community  https://grafana-community.github.io/helm-charts            >/dev/null 2>&1 || true
 run_cmd helm repo add kedacore           https://kedacore.github.io/charts                            >/dev/null 2>&1 || true
 run_cmd helm repo update
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cilium (upgrade only — already installed by cloud-init at node boot)
+# Idempotent: only applies values changes (Hubble metrics, ServiceMonitors,
+# UI ingress). Does NOT restart the CNI data plane unless values changed.
+# ─────────────────────────────────────────────────────────────────────────────
+info "Upgrading Cilium…"
+CONTROL_PLANE_IP="${CONTROL_PLANE_IP:?Set CONTROL_PLANE_IP to the private IP of your control-plane node}"
+POD_CIDR="${POD_CIDR:-192.168.0.0/16}"
+
+run_cmd helm upgrade --install cilium cilium/cilium \
+  --version   "1.16.0" \
+  --namespace kube-system \
+  --values    "$ROOT_DIR/k8s/helm/cilium-values.yaml" \
+  # --set k8sServiceHost="$CONTROL_PLANE_IP" \
+  # --set k8sServicePort="6443" \
+  --set ipam.operator.clusterPoolIPv4PodCIDRList="$POD_CIDR" \
+  --wait \
+  --timeout 5m
+
+wait_for_rollout "daemonset/cilium"           "kube-system" "180s"
+wait_for_rollout "deployment/cilium-operator" "kube-system" "120s"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auto scaler
@@ -123,6 +146,10 @@ if [[ -n "$PROM_SS" ]]; then
 else
   echo "  ⚠️ Warning: No Prometheus StatefulSet found in namespace '$MONITORING_NAMESPACE' — skipping rollout check." >&2
 fi
+
+# Apply Hubble dashboard — auto-imported by the Grafana ConfigMap sidecar
+info "Applying Hubble Grafana dashboard…"
+run_cmd kubectl apply -f "$ROOT_DIR/k8s/helm/hubble-grafana-dashboard.yaml"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Ingress NGINX

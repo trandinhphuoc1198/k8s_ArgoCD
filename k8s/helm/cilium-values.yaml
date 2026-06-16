@@ -1,0 +1,142 @@
+# =============================================================================
+# cilium-values.yaml
+#
+# For a FRESH kubeadm cluster on self-managed EC2 (Amazon Linux 2).
+# kube-proxy was never installed (skipPhases: addon/kube-proxy in kubeadm).
+#
+# Installed by cloud-init-control-plane.sh immediately after kubeadm init,
+# and also re-applicable via deploy.sh for upgrades.
+#
+# Two env vars must be passed as --set at install time:
+#   --set k8sServiceHost=<CONTROL_PLANE_PRIVATE_IP>
+#   --set ipam.operator.clusterPoolIPv4PodCIDRList=<POD_CIDR>
+# (deploy.sh and cloud-init do this automatically)
+# =============================================================================
+
+# ── Routing ───────────────────────────────────────────────────────────────────
+# Native routing — no overlay (VXLAN/Geneve). Pods get IPs from the VPC subnet
+# directly, identical to what Calico ENI mode was doing.
+# tunnel: ""
+
+tunnelProtocol: vxlan #geneve
+routingMode: tunnel # native
+autoDirectNodeRoutes: true
+
+ipam:
+  mode: kubernetes
+  # clusterPoolIPv4PodCIDRList is passed via --set from deploy.sh / cloud-init
+
+# ── kube-proxy replacement ────────────────────────────────────────────────────
+# kube-proxy was never installed (kubeadm skipPhases: addon/kube-proxy).
+# Cilium eBPF handles all Service traffic: ClusterIP, NodePort, LoadBalancer.
+kubeProxyReplacement: "true"
+
+# Filled in at install time via --set
+k8sServiceHost: "auto"
+k8sServicePort: "6443"
+
+# ── NodePort ──────────────────────────────────────────────────────────────────
+# ingress-nginx uses NodePorts 30080 and 30443 — covered by this range.
+nodePort:
+  enabled: true
+  range: "30000-32767"
+
+# ── eBPF masquerade ───────────────────────────────────────────────────────────
+# Replaces iptables MASQUERADE with eBPF — more efficient at high conn rates.
+bpf:
+  masquerade: true
+
+enableIPv4Masquerade: true
+enableIPv6Masquerade: false
+
+# ── Hubble ────────────────────────────────────────────────────────────────────
+hubble:
+  enabled: true
+
+  # Metrics scraped by kube-prometheus-stack
+  metrics:
+    enabled:
+      - dns:query;ignoreAAAA
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: kube-prometheus-stack   # matches your Prometheus selector
+
+  relay:
+    enabled: true
+    rollOutPods: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  ui:
+    enabled: true
+    rollOutPods: true
+    # Expose via ingress-nginx at /hubble (optional — can also use port-forward)
+    ingress:
+      enabled: true
+      className: nginx
+      hosts:
+        - ""   # set to your ALB hostname, or leave blank and use port-forward
+      paths:
+        - /hubble
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+# ── Prometheus / ServiceMonitor ───────────────────────────────────────────────
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+
+operator:
+  replicas: 1
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: kube-prometheus-stack
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# ── Agent resources ───────────────────────────────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# ── Tolerations ───────────────────────────────────────────────────────────────
+# Must run on control-plane node too — Cilium bootstraps the CNI before
+# the control-plane taint is applied and must stay there.
+tolerations:
+  - operator: Exists
+
+rollOutCiliumPods: true
+
+# ── Identity ──────────────────────────────────────────────────────────────────
+identityAllocationMode: crd
