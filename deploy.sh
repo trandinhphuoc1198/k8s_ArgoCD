@@ -79,7 +79,7 @@ run_cmd helm repo update
 # ─────────────────────────────────────────────────────────────────────────────
 info "Upgrading Cilium…"
 
-helm install prometheus-operator-crds prometheus-community/prometheus-operator-crds \
+helm upgrade --install prometheus-operator-crds prometheus-community/prometheus-operator-crds \
   -n monitoring --create-namespace
 
 # CONTROL_PLANE_IP="${CONTROL_PLANE_IP:?Set CONTROL_PLANE_IP to the private IP of your control-plane node}"
