@@ -70,6 +70,7 @@ run_cmd helm repo add open-telemetry     https://open-telemetry.github.io/opente
 run_cmd helm repo add grafana            https://grafana.github.io/helm-charts                      >/dev/null 2>&1 || true
 run_cmd helm repo add grafana-community  https://grafana-community.github.io/helm-charts            >/dev/null 2>&1 || true
 run_cmd helm repo add kedacore           https://kedacore.github.io/charts                            >/dev/null 2>&1 || true
+run_cmd helm repo add cnpg https://cloudnative-pg.github.io/charts
 run_cmd helm repo update
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -267,5 +268,21 @@ fi
 
 # Expand the array explicitly so it prints properly with run_cmd
 run_cmd helm "${app_args[@]}"
+
+# Create DB
+run_cmd helm upgrade --install cnpg cnpg/cloudnative-pg \
+  --namespace cnpg-system \
+  --create-namespace \
+  --values k8s/helm/cnpg-values.yaml \
+  --wait \
+  --timeout 5m
+
+echo "✅ CloudNativePG operator ready"
+
+run_cmd helm upgrade --install postgresql "$ROOT_DIR/charts/postgresql" \
+  --namespace db \
+  --create-namespace \
+  --wait \
+  --timeout 5m
 
 info "✅ Deployment script completed successfully."

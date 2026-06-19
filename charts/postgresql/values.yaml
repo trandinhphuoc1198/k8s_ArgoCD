@@ -12,7 +12,7 @@ cluster:
   # 1 primary + 1 replica = 2 instances total
   instances: 2
 
-  database: appdb
+  database: TestDb
   owner: appuser
 
   imageName: ghcr.io/cloudnative-pg/postgresql:16.3
