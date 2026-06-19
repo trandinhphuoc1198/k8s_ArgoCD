@@ -18,13 +18,16 @@
 # directly, identical to what Calico ENI mode was doing.
 # tunnel: ""
 
-tunnelProtocol: vxlan #geneve
-routingMode: tunnel # native
-autoDirectNodeRoutes: true
+# tunnelProtocol: vxlan #geneve
+routingMode: tunnel # tunnel native
+#autoDirectNodeRoutes: false
+# ipv4NativeRoutingCIDR: 10.0.0.0/8 # same value as ipam.operator.clusterPoolIPv4PodCIDRList
 
 ipam:
   mode: kubernetes
-  # clusterPoolIPv4PodCIDRList is passed via --set from deploy.sh / cloud-init
+  operator:
+  # -- IPv4 CIDR list range to delegate to individual nodes for IPAM.
+  # clusterPoolIPv4PodCIDRList: ["10.0.0.0/8"] 
 
 # ── kube-proxy replacement ────────────────────────────────────────────────────
 # kube-proxy was never installed (kubeadm skipPhases: addon/kube-proxy).
@@ -39,7 +42,7 @@ k8sServicePort: "6443"
 # ingress-nginx uses NodePorts 30080 and 30443 — covered by this range.
 nodePort:
   enabled: true
-  range: "30000-32767"
+  range: "30000,32767"
 
 # ── eBPF masquerade ───────────────────────────────────────────────────────────
 # Replaces iptables MASQUERADE with eBPF — more efficient at high conn rates.

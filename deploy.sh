@@ -78,18 +78,22 @@ run_cmd helm repo update
 # UI ingress). Does NOT restart the CNI data plane unless values changed.
 # ─────────────────────────────────────────────────────────────────────────────
 info "Upgrading Cilium…"
-CONTROL_PLANE_IP="${CONTROL_PLANE_IP:?Set CONTROL_PLANE_IP to the private IP of your control-plane node}"
-POD_CIDR="${POD_CIDR:-192.168.0.0/16}"
+
+helm install prometheus-operator-crds prometheus-community/prometheus-operator-crds \
+  -n monitoring --create-namespace
+
+# CONTROL_PLANE_IP="${CONTROL_PLANE_IP:?Set CONTROL_PLANE_IP to the private IP of your control-plane node}"
+# POD_CIDR="${POD_CIDR:-192.168.0.0/16}"
 
 run_cmd helm upgrade --install cilium cilium/cilium \
   --version   "1.16.0" \
   --namespace kube-system \
   --values    "$ROOT_DIR/k8s/helm/cilium-values.yaml" \
-  # --set k8sServiceHost="$CONTROL_PLANE_IP" \
-  # --set k8sServicePort="6443" \
-  --set ipam.operator.clusterPoolIPv4PodCIDRList="$POD_CIDR" \
   --wait \
-  --timeout 5m
+  --timeout 5m 
+  # --set ipam.operator.clusterPoolIPv4PodCIDRList="$POD_CIDR" \
+  # --set k8sServiceHost="$CONTROL_PLANE_IP" \
+  # --set k8sServicePort="6443" 
 
 wait_for_rollout "daemonset/cilium"           "kube-system" "180s"
 wait_for_rollout "deployment/cilium-operator" "kube-system" "120s"
