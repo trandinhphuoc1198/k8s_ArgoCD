@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: gintaku98/k8s_fastapi
-  tag: daf0612adf9b6220949abfc84a182b77c2534572
+  tag: fec13f105cd40a055006d871e351c878e368b3e9
   pullPolicy: IfNotPresent
 
 nameOverride: "fastapi-app"
@@ -79,7 +79,7 @@ database:
   port: "5432"
   user: "appuser"
   password: "changeme"
-  name: "appdb"
+  name: "TestDb"
 
 podAnnotations: {}
 podLabels: {}
