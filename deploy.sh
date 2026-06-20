@@ -277,12 +277,17 @@ run_cmd helm upgrade --install cnpg cnpg/cloudnative-pg \
   --wait \
   --timeout 5m
 
-echo "✅ CloudNativePG operator ready"
+info "✅ CloudNativePG operator ready"
 
 run_cmd helm upgrade --install postgresql "$ROOT_DIR/charts/postgresql" \
   --namespace db \
   --create-namespace \
   --wait \
   --timeout 5m
+
+
+info "✅ Deployment dashboard."
+
+run_cmd kubectl apply -f grafana-dashboards/
 
 info "✅ Deployment script completed successfully."
