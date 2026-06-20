@@ -42,6 +42,7 @@ prometheus:
     routePrefix: /prometheus
     retention: 2d
     serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
     
     storageSpec:
       volumeClaimTemplate:

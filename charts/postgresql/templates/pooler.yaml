@@ -20,6 +20,9 @@ spec:
 
   instances: {{ .Values.pooler.rw.instances }}
 
+  monitoring:
+    enablePodMonitor: {{ .Values.monitoring.enabled }}
+
   pgbouncer:
     poolMode: {{ .Values.pooler.poolMode }}
     parameters:
@@ -65,6 +68,9 @@ spec:
   type: ro
 
   instances: {{ .Values.pooler.ro.instances }}
+
+  monitoring:
+    enablePodMonitor: {{ .Values.monitoring.enabled }}
 
   pgbouncer:
     poolMode: {{ .Values.pooler.poolMode }}
