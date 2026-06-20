@@ -17,7 +17,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "otel.collectorAgg.name" . }}-collector
+      app.kubernetes.io/name: {{ include "otel.collectorAgg.serviceName" . }}
       app.kubernetes.io/component: opentelemetry-collector
   namespaceSelector:
     matchNames:
@@ -42,7 +42,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "otel.collectorDS.name" . }}-collector
+      app.kubernetes.io/name: {{ include "otel.collectorDS.serviceName" . }}
       app.kubernetes.io/component: opentelemetry-collector
   namespaceSelector:
     matchNames:

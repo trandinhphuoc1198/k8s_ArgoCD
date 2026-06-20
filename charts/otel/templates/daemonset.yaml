@@ -17,7 +17,7 @@ metadata:
   name: {{ include "otel.collectorDS.name" . }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "otel.labels" . | nindent 4 }}
+    {{- include "otel.labels" (dict "root" . "name" (include "otel.collectorDS.serviceName" .)) | nindent 4 }}
     app.kubernetes.io/component: collector-daemonset
 spec:
   mode: daemonset
@@ -327,7 +327,7 @@ spec:
               max_elapsed_time: 300s
         resolver:
           dns:
-            hostname: "{{ include "otel.collectorAgg.name" . }}-collector-headless.{{ .Values.global.namespace }}.svc.cluster.local"
+            hostname: "{{ include "otel.collectorAgg.serviceName" . }}-headless.{{ .Values.global.namespace }}.svc.cluster.local"
             port: 4317
 
       # ── Metrics & Logs — routed by service name (no traceID on these) ─────
@@ -353,7 +353,7 @@ spec:
               max_elapsed_time: 300s
         resolver:
           dns:
-            hostname: "{{ include "otel.collectorAgg.name" . }}-collector-headless.{{ .Values.global.namespace }}.svc.cluster.local"
+            hostname: "{{ include "otel.collectorAgg.serviceName" . }}-headless.{{ .Values.global.namespace }}.svc.cluster.local"
             port: 4317
 
       {{- if .Values.backends.debug.enabled }}

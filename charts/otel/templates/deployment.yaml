@@ -23,7 +23,7 @@ metadata:
   name: {{ include "otel.collectorAgg.name" . }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "otel.labels" . | nindent 4 }}
+    {{- include "otel.labels" (dict "root" . "name" (include "otel.collectorAgg.serviceName" .)) | nindent 4 }}
     app.kubernetes.io/component: collector-aggregator
 spec:
   mode: deployment
