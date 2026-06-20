@@ -328,7 +328,7 @@ spec:
         resolver:
           dns:
             hostname: "{{ include "otel.collectorAgg.serviceName" . }}-headless.{{ .Values.global.namespace }}.svc.cluster.local"
-            port: 4317
+            port: "4317"
 
       # ── Metrics & Logs — routed by service name (no traceID on these) ─────
       loadbalancing/metrics_logs:
@@ -354,7 +354,7 @@ spec:
         resolver:
           dns:
             hostname: "{{ include "otel.collectorAgg.serviceName" . }}-headless.{{ .Values.global.namespace }}.svc.cluster.local"
-            port: 4317
+            port: "4317"
 
       {{- if .Values.backends.debug.enabled }}
       debug:
