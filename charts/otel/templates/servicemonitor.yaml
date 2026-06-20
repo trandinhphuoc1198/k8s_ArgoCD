@@ -23,7 +23,7 @@ spec:
     matchNames:
       - {{ .Values.global.namespace }}
   endpoints:
-    - port: metrics          # exposed on port 8888 by the collector
+    - port: monitoring          # exposed on port 8888 by the collector
       interval: {{ .Values.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
       path: /metrics
@@ -48,7 +48,7 @@ spec:
     matchNames:
       - {{ .Values.global.namespace }}
   endpoints:
-    - port: metrics          # exposed on port 8888 by the collector
+    - port: monitoring          # exposed on port 8888 by the collector
       interval: {{ .Values.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
       path: /metrics
