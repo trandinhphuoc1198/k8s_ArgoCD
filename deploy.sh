@@ -152,9 +152,6 @@ else
   echo "  ⚠️ Warning: No Prometheus StatefulSet found in namespace '$MONITORING_NAMESPACE' — skipping rollout check." >&2
 fi
 
-# Apply Hubble dashboard — auto-imported by the Grafana ConfigMap sidecar
-info "Applying Hubble Grafana dashboard…"
-run_cmd kubectl apply -f "$ROOT_DIR/k8s/helm/hubble-grafana-dashboard.yaml"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Ingress NGINX
