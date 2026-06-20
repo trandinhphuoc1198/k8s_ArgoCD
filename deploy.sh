@@ -288,6 +288,6 @@ run_cmd helm upgrade --install postgresql "$ROOT_DIR/charts/postgresql" \
 
 info "✅ Deployment dashboard."
 
-run_cmd kubectl apply -f grafana-dashboards/
+run_cmd kubectl apply -f "$ROOT_DIR/grafana-dashboards/"
 
 info "✅ Deployment script completed successfully."
