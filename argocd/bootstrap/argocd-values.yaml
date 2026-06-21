@@ -27,8 +27,10 @@ configs:
 server:
   service:
     type: NodePort
-    nodePortHttp: 30180
+    nodePortHttp: 30080
     nodePortHttps: 30543
+  ingress:
+    path: /argocd
 
   resources:
     requests:
