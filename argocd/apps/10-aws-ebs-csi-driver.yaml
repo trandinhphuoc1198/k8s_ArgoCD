@@ -15,7 +15,7 @@ spec:
   sources:
     - repoURL: https://kubernetes-sigs.github.io/aws-ebs-csi-driver
       chart: aws-ebs-csi-driver
-      targetRevision: "REPLACE_ME"   # see argocd/bootstrap/capture-versions.sh
+      targetRevision: "2.62.0"   # see argocd/bootstrap/capture-versions.sh
       helm:
         releaseName: aws-ebs-csi-driver
         valueFiles:

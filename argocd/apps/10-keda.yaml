@@ -14,7 +14,7 @@ spec:
   sources:
     - repoURL: https://kedacore.github.io/charts
       chart: keda
-      targetRevision: "REPLACE_ME"   # see argocd/bootstrap/capture-versions.sh
+      targetRevision: "2.20.1"   # see argocd/bootstrap/capture-versions.sh
       helm:
         releaseName: keda
         valueFiles:

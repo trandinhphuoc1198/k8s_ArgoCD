@@ -16,7 +16,7 @@ spec:
   source:
     repoURL: https://prometheus-community.github.io/helm-charts
     chart: prometheus-operator-crds
-    targetRevision: "REPLACE_ME"   # see argocd/bootstrap/capture-versions.sh
+    targetRevision: "30.0.0"   # see argocd/bootstrap/capture-versions.sh
     helm:
       releaseName: prometheus-operator-crds
   destination:

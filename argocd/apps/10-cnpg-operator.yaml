@@ -15,7 +15,7 @@ spec:
   sources:
     - repoURL: https://cloudnative-pg.github.io/charts
       chart: cloudnative-pg
-      targetRevision: "REPLACE_ME"   # see argocd/bootstrap/capture-versions.sh
+      targetRevision: "0.28.3"   # see argocd/bootstrap/capture-versions.sh
       helm:
         releaseName: cnpg
         valueFiles:
