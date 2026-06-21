@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-infra
+  namespace: argocd
+spec:
+  description: >
+    Cluster infrastructure — CNI, autoscaler, storage, ingress,
+    observability stack, KEDA, the CNPG operator, and the Argo CD
+    bootstrap (root-app) itself. High blast radius, low change frequency.
+    Owns CRDs, StorageClasses, ClusterRoles, etc. by design.
+
+  sourceRepos:
+    - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
+    - "https://helm.cilium.io/"
+    - "https://kubernetes.github.io/autoscaler"
+    - "https://kubernetes.github.io/ingress-nginx"
+    - "https://prometheus-community.github.io/helm-charts"
+    - "https://kubernetes-sigs.github.io/aws-ebs-csi-driver"
+    - "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    - "https://grafana.github.io/helm-charts"
+    - "https://grafana-community.github.io/helm-charts"
+    - "https://kedacore.github.io/charts"
+    - "https://cloudnative-pg.github.io/charts"
+
+  # Only the system namespaces these specific releases land in, plus
+  # 'argocd' itself (root-app creates the child Application resources
+  # there). Notably absent: 'fastapi' and 'db' — infra apps have no
+  # business touching the app's namespaces.
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+    - server: https://kubernetes.default.svc
+      namespace: ingress-nginx
+    - server: https://kubernetes.default.svc
+      namespace: observability
+    - server: https://kubernetes.default.svc
+      namespace: keda
+    - server: https://kubernetes.default.svc
+      namespace: cnpg-system
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+
+  # These charts legitimately install CRDs, StorageClasses, ClusterRoles,
+  # ClusterRoleBindings, the CSIDriver object, etc. — kept wide open here,
+  # the namespace scoping above is the real boundary for this project.
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

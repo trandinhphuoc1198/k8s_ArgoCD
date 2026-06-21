@@ -1,0 +1,29 @@
+# Custom local chart (charts/otel). Depends on the OTel Operator CRDs
+# (wave 10): OpenTelemetryCollector + Instrumentation.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-collectors
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-infra
+  source:
+    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+    targetRevision: main
+    path: charts/otel
+    helm:
+      releaseName: otel
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

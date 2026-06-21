@@ -1,0 +1,31 @@
+# Installed standalone (not as part of kube-prometheus-stack) to mirror
+# deploy.sh, which runs this before everything else. kube-prometheus-stack,
+# Hubble ServiceMonitors, KEDA ServiceMonitors etc. all need these CRDs
+# (ServiceMonitor, PodMonitor, ...) to exist first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-operator-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-infra
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus-operator-crds
+    targetRevision: "REPLACE_ME"   # see argocd/bootstrap/capture-versions.sh
+    helm:
+      releaseName: prometheus-operator-crds
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

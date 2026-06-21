@@ -1,0 +1,74 @@
+# argocd/bootstrap/argocd-values.yaml
+#
+# Values for the official Argo CD Helm chart (argoproj/argo-helm).
+# This installs Argo CD itself — it is NOT managed by Argo CD (chicken-and-egg),
+# so it's applied once by hand via install-argocd.sh, same way Cilium is
+# bootstrapped by cloud-init before deploy.sh ever runs.
+#
+# Install:
+#   helm repo add argo https://argoproj.github.io/argo-helm
+#   helm repo update
+#   helm upgrade --install argocd argo/argo-cd \
+#     --namespace argocd --create-namespace \
+#     --values argocd/bootstrap/argocd-values.yaml \
+#     --wait
+
+# ── Server exposure ───────────────────────────────────────────────────────────
+# NodePort, matching the pattern ingress-nginx already uses on this cluster
+# (which is NodePort 30080/30443). Different ports chosen to avoid collision.
+# Both fall inside Cilium's configured NodePort range (30000-32767).
+configs:
+  params:
+    # Terminate TLS at the NodePort instead of inside argocd-server, so the
+    # UI/CLI work over plain HTTP without cert wrangling for a first pass.
+    # Put a real TLS terminator (ALB/ingress) in front later if needed.
+    server.insecure: true
+
+server:
+  service:
+    type: NodePort
+    nodePortHttp: 30180
+    nodePortHttps: 30543
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+controller:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+applicationSet:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Not needed for a single-cluster, no-SSO setup. Flip on later if you want
+# GitHub/OIDC login instead of the built-in admin user.
+dex:
+  enabled: false
+
+notifications:
+  enabled: false

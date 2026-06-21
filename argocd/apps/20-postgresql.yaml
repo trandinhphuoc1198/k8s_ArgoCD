@@ -1,0 +1,36 @@
+# Custom local chart (charts/postgresql) — creates the CNPG 'Cluster' +
+# poolers. Depends on the CNPG operator's CRDs (wave 10).
+#
+# NOTE: charts/postgresql/values.yaml ships a placeholder app-user password
+# ("changeme", base64-encoded) committed in git. That's a pre-existing
+# condition in this repo, not something this Argo CD setup introduces — but
+# now that it's the live source of truth for the cluster, consider moving
+# it to a sealed-secret / external-secret before going further than a dev
+# environment.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgresql
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-apps
+  source:
+    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+    targetRevision: main
+    path: charts/postgresql
+    helm:
+      releaseName: postgresql
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: db
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

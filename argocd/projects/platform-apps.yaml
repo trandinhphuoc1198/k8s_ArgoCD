@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-apps
+  namespace: argocd
+spec:
+  description: >
+    The application layer — fastapi-app and its database (postgresql,
+    via the CNPG operator that platform-infra owns). Low blast radius,
+    changes often. Deliberately cannot create anything cluster-scoped.
+
+  # Both charts here are local to this repo — no external Helm chart repos
+  # needed, unlike platform-infra.
+  sourceRepos:
+    - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: fastapi
+    - server: https://kubernetes.default.svc
+      namespace: db
+
+  # Intentionally omitted: cluster-scoped resources are denied by default
+  # when this list is empty/unset. Neither fastapi-app nor postgresql's
+  # templates create anything cluster-scoped (checked: Deployment, Service,
+  # Ingress, ScaledObject, Secret, ServiceAccount, ServiceMonitor, and the
+  # CNPG Cluster/Pooler CRs are all namespaced kinds) — so this project
+  # genuinely doesn't need the permission, not just "doesn't use it yet."
+  # clusterResourceWhitelist: []
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

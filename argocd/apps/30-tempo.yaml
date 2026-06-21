@@ -1,0 +1,46 @@
+# storageClass override replicates deploy.sh's
+# --set ingester.persistence.storageClass="$STORAGE_CLASS" (the values file
+# itself ships a 'standard' placeholder).
+#
+# NOTE: tempo-values.yaml's extraEnvFrom blocks referencing a
+# 'tempo-s3-credentials' Secret are commented out, and no chart in this repo
+# creates that secret. That implies Tempo is currently picking up S3 access
+# from the EC2 instance profile's IAM role (default AWS SDK credential
+# chain), not a k8s Secret. Worth confirming on the actual nodes before
+# relying on it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-infra
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: tempo-distributed
+      targetRevision: "1.60.0"
+      helm:
+        releaseName: tempo
+        valueFiles:
+          - $values/k8s/helm/tempo-values.yaml
+        valuesObject:
+          ingester:
+            persistence:
+              storageClass: ebs-csi
+    - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

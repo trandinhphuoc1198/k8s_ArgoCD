@@ -1,0 +1,46 @@
+# Needs prometheus-operator-crds (wave 0) and the 'ebs-csi' StorageClass
+# from aws-ebs-csi-driver (wave 10). fullnameOverride + storageClassName
+# overrides replicate the --set flags deploy.sh passes on the CLI.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-infra
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: "REPLACE_ME"   # see argocd/bootstrap/capture-versions.sh
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/k8s/helm/kube-prometheus-stack-values.yaml
+        valuesObject:
+          fullnameOverride: monitoring
+          grafana:
+            persistence:
+              storageClassName: ebs-csi
+          prometheus:
+            prometheusSpec:
+              storageSpec:
+                volumeClaimTemplate:
+                  spec:
+                    storageClassName: ebs-csi
+    - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

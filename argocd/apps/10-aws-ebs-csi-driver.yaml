@@ -1,0 +1,35 @@
+# Provides the 'ebs-csi' StorageClass. kube-prometheus-stack (wave 20) and
+# postgresql (wave 20) both provision PVCs against it, so this must be
+# healthy first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-ebs-csi-driver
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-infra
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/aws-ebs-csi-driver
+      chart: aws-ebs-csi-driver
+      targetRevision: "REPLACE_ME"   # see argocd/bootstrap/capture-versions.sh
+      helm:
+        releaseName: aws-ebs-csi-driver
+        valueFiles:
+          - $values/k8s/helm/ebs-csi-values.yaml
+    - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
