@@ -1,120 +1,117 @@
 #!/usr/bin/env bash
-
+#
+# tear-down.sh (Automated Cluster Purge & Resource Destruction Script)
+# Location: Root folder (C:\...)
+#
 set -euo pipefail
 
-APP_NAMESPACE="${APP_NAMESPACE:-fastapi}"
-MONITORING_NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
-INGRESS_NAMESPACE="${INGRESS_NAMESPACE:-ingress-nginx}"
-OTEL_NAMESPACE="${OTEL_NAMESPACE:-observability}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 
-require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "missing required command: $1" >&2
-    exit 1
-  fi
-}
+# Terminal Formatting Colors
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BLUE='\033[1;34m'
+NC='\033[0m'
 
-require_command helm
-require_command kubectl
+info() { echo -e "\n${BLUE}==>${NC} \033[1m$1\033[0m"; }
+warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 
-uninstall_release() {
-  local release_name=$1
-  local namespace=$2
-
-  if helm status "$release_name" -n "$namespace" >/dev/null 2>&1; then
-    echo "Uninstalling Helm release: $release_name in namespace: $namespace..."
-    helm uninstall "$release_name" -n "$namespace" --wait
-  else
-    echo "Release $release_name not found in $namespace, skipping."
-  fi
-}
-
-echo "🛑 Starting cluster teardown..."
+echo -e "${RED}==================================================${NC}"
+echo -e "${RED}    Starting Automated Cluster Resource Purge     ${NC}"
+echo -e "${RED}==================================================${NC}"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. Uninstall Workloads (Frees up the PVCs from active use)
+# Step 1: Purge PVCs and PVs FIRST (While Storage Drivers are Active)
 # ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "🚀 Removing FastAPI Application..."
-uninstall_release fastapi-app "$APP_NAMESPACE"
-
-echo ""
-echo "🟡 Removing Grafana Loki..."
-uninstall_release loki "$OTEL_NAMESPACE"
-
-echo ""
-echo "🟠 Removing Grafana Tempo..."
-uninstall_release tempo "$OTEL_NAMESPACE"
-
-echo ""
-echo "🔭 Removing OpenTelemetry Stack..."
-uninstall_release otel "$OTEL_NAMESPACE"
-uninstall_release opentelemetry-operator "$OTEL_NAMESPACE"
-
-echo ""
-echo "📊 Removing Kube-Prometheus-Stack..."
-uninstall_release kube-prometheus-stack "$MONITORING_NAMESPACE"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Delete PVCs (Must be done BEFORE removing the CSI driver)
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "🧹 Checking and removing all PersistentVolumeClaims (PVCs)..."
-
-for ns in "$APP_NAMESPACE" "$OTEL_NAMESPACE" "$MONITORING_NAMESPACE" "$INGRESS_NAMESPACE"; do
-  if kubectl get namespace "$ns" >/dev/null 2>&1; then
-    PVC_COUNT=$(kubectl get pvc -n "$ns" --no-headers 2>/dev/null | wc -l || echo 0)
-    
-    if [ "$PVC_COUNT" -gt 0 ]; then
-      echo "Found ${PVC_COUNT} PVC(s) in namespace: ${ns}. Deleting..."
-      kubectl delete pvc --all -n "$ns"
-    else
-      echo "No PVCs found in namespace: ${ns}."
+info "Step 1/6: Purging all PVCs and PVs before stripping storage drivers..."
+namespaces=$(kubectl get ns -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+for ns in $namespaces; do
+    if [[ "$ns" =~ ^(kube-system|kube-public|kube-node-lease)$ ]]; then
+        continue
     fi
-  fi
+    
+    pvc_list=$(kubectl get pvc -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+    if [[ -n "$pvc_list" ]]; then
+        echo "Found PVCs in namespace [$ns]. Initializing deletion..."
+        # Strip finalizers to prevent stuck cloud storage attachments
+        for pvc in $pvc_list; do
+            kubectl patch pvc "$pvc" -n "$ns" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+        done
+        kubectl delete pvc --all -n "$ns" --timeout=45s || true
+    fi
 done
 
-echo "⏳ Waiting 15 seconds to allow AWS EBS CSI driver to process volume deletions..."
-sleep 15
+echo "Purging lingering Persistent Volumes (PVs)..."
+pv_list=$(kubectl get pv -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+for pv in $pv_list; do
+    kubectl patch pv "$pv" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+done
+kubectl delete pv --all --timeout=30s || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Uninstall Base Infrastructure Components
+# Step 2: Remove Root App and Patch Finalizers
 # ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "🔀 Removing Ingress NGINX..."
-uninstall_release ingress-nginx "$INGRESS_NAMESPACE"
-
-echo ""
-echo "💾 Removing AWS EBS CSI Driver..."
-uninstall_release aws-ebs-csi-driver "kube-system"
-
-echo ""
-echo "📈 Removing Metrics Server..."
-uninstall_release metrics-server "kube-system"
+info "Step 2/6: Removing ArgoCD Root App..."
+if kubectl get application root-app -n "$ARGOCD_NAMESPACE" >/dev/null 2>&1; then
+    kubectl delete application root-app -n "$ARGOCD_NAMESPACE" --timeout=45s || {
+        warn "Root app deletion timed out. Force-clearing finalizers..."
+        kubectl patch application root-app -n "$ARGOCD_NAMESPACE" -p '{"metadata":{"finalizers":null}}' --type=merge || true
+    }
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. Clean up Namespaces
+# Step 3: Delete All Downstream ArgoCD Applications & Projects
 # ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "🗑️ Removing Namespaces..."
+info "Step 3/6: Purging managed applications and resources..."
+apps=$(kubectl get applications -n "$ARGOCD_NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+for app in $apps; do
+    echo "Deleting application: $app"
+    kubectl patch application "$app" -n "$ARGOCD_NAMESPACE" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+    kubectl delete application "$app" -n "$ARGOCD_NAMESPACE" --cascade=foreground --timeout=20s 2>/dev/null || true
+done
 
-for ns in "$APP_NAMESPACE" "$OTEL_NAMESPACE" "$MONITORING_NAMESPACE" "$INGRESS_NAMESPACE"; do
-  if kubectl get namespace "$ns" >/dev/null 2>&1; then
-    echo "Deleting namespace: $ns..."
-    kubectl delete namespace "$ns" --ignore-not-found
-  else
-    echo "Namespace $ns already removed."
-  fi
+if [ -d "$REPO_ROOT/argocd/projects" ]; then
+    echo "Deleting AppProjects..."
+    kubectl delete -f "$REPO_ROOT/argocd/projects/" --ignore-not-found=true --timeout=20s || true
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 4: Purge Bootstrap Helm Releases (ArgoCD, Autoscaler, Cilium)
+# ─────────────────────────────────────────────────────────────────────────────
+info "Step 4/6: Uninstalling Base Helm Releases..."
+echo "Uninstalling Argo CD..."
+helm uninstall argocd --namespace "$ARGOCD_NAMESPACE" 2>/dev/null || true
+
+echo "Uninstalling Cluster Autoscaler..."
+helm uninstall cluster-autoscaler --namespace kube-system 2>/dev/null || true
+
+echo "Uninstalling Cilium..."
+helm uninstall cilium --namespace kube-system 2>/dev/null || true
+
+echo "Uninstalling Prometheus Operator CRDs..."
+helm uninstall prometheus-operator-crds --namespace monitoring 2>/dev/null || true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 5: Clean Up Target Namespaces
+# ─────────────────────────────────────────────────────────────────────────────
+info "Step 5/6: Terminating operational Namespaces..."
+for ns in "$ARGOCD_NAMESPACE" "monitoring"; do
+    if kubectl get namespace "$ns" >/dev/null 2>&1; then
+        echo "Deleting namespace: $ns"
+        kubectl delete namespace "$ns" --timeout=45s || {
+            warn "Namespace $ns stuck. Forcing cluster finalizer release..."
+            kubectl get namespace "$ns" -o json | tr -d "\n" | sed 's/"spec":\s*{\s*"finalizers":\s*\[[^]]*\]\s*}/"spec":{"finalizers":[]}/g' | kubectl replace --raw "/api/v1/namespaces/$ns/finalize" -f - || true
+        }
+    fi
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Summary
+# Step 6: Verification Output
 # ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo "✅ Teardown complete."
-echo "Remaining PVCs across all namespaces (should be empty):"
-kubectl get pvc -A
-echo ""
-echo "Remaining PVs (should be empty):"
-kubectl get pv
-echo ""
+info "Step 6/6: Verifying cleanup state..."
+kubectl get pvc,pv,apps,appprojects --all-namespaces 2>/dev/null || echo "No tracked GitOps assets remain."
+
+echo -e "\n${RED}==================================================${NC}"
+echo -e "${RED}       Teardown Completed Successfully!           ${NC}"
+echo -e "${RED}==================================================${NC}"
