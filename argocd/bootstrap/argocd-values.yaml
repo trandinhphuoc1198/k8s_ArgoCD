@@ -31,6 +31,7 @@ server:
   #   nodePortHttps: 30543
   ingress:
     enabled: true
+    ingressClassName: nginx
     path: /argocd
 
   resources:
@@ -56,8 +57,8 @@ controller:
       cpu: 250m
       memory: 512Mi
     limits:
-      cpu: 500m
-      memory: 1.5Gi
+      cpu: 700m
+      memory: 1Gi
 
 applicationSet:
   resources:

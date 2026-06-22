@@ -61,26 +61,46 @@ done
 wait # Wait for background force deletions to clear
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 3: Purge PVCs and PVs (While cloud storage controllers are still online)
+# Step 3: Purge PVCs and PVs (Letting CSI Drivers Delete AWS Infrastructure)
 # ─────────────────────────────────────────────────────────────────────────────
 info "Step 3/5: Erasing persistent storage configurations..."
+
+# 1. Issue a normal delete first so the AWS EBS CSI driver receives the API call
 for ns in $TARGET_NAMESPACES; do
-    pvc_list=$(kubectl get pvc -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
-    if [[ -n "$pvc_list" ]]; then
-        for pvc in $pvc_list; do
-            kubectl patch pvc "$pvc" -n "$ns" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
-        done
-        kubectl delete pvc --all -n "$ns" --force --grace-period=0 --timeout=20s >/dev/null 2>&1 &
+    if kubectl get pvc -n "$ns" >/dev/null 2>&1; then
+        echo "  -> Requesting graceful deletion of PVCs in [$ns]..."
+        kubectl delete pvc --all -n "$ns" --timeout=30s >/dev/null 2>&1 &
     fi
 done
 wait
 
-pv_list=$(kubectl get pv -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
-for pv in $pv_list; do
-    kubectl patch pv "$pv" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
-done
-kubectl delete pv --all --force --grace-period=0 --timeout=20s >/dev/null 2>&1 || true
+# 2. Give the cloud provider 10 seconds to process the under-the-hood AWS API calls
+echo "Waiting 10 seconds for cloud storage providers to release infrastructure..."
+sleep 10
 
+# 3. ONLY strip finalizers if resources are obstinately stuck in 'Terminating'
+for ns in $TARGET_NAMESPACES; do
+    stuck_pvcs=$(kubectl get pvc -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+    if [[ -n "$stuck_pvcs" ]]; then
+        warn "PVCs stuck in [$ns]. Forcing finalizer stripping (May cause AWS orphans!)."
+        for pvc in $stuck_pvcs; do
+            kubectl patch pvc "$pvc" -n "$ns" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+        done
+        kubectl delete pvc --all -n "$ns" --force --grace-period=0 --timeout=5s >/dev/null 2>&1 || true
+    fi
+done
+
+# 4. Gracefully handle PVs
+if kubectl get pv >/dev/null 2>&1; then
+    kubectl delete pv --all --timeout=15s >/dev/null 2>&1 || true
+    
+    # Ultimate fallback for PV metadata
+    stuck_pvs=$(kubectl get pv -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+    for pv in $stuck_pvs; do
+        kubectl patch pv "$pv" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+    done
+    kubectl delete pv --all --force --grace-period=0 --timeout=5s >/dev/null 2>&1 || true
+fi
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 4: Uninstall Helm Releases (Infrastructure Drivers)
 # ─────────────────────────────────────────────────────────────────────────────
