@@ -3,11 +3,6 @@
 # deploy.sh (All-in-One Bootstrap Script)
 # Location: Root folder (C:\...)
 #
-# This script handles the chicken-and-egg deployment problem by:
-#   1. Installing Cilium (CNI) so cluster pod networking initializes.
-#   2. Installing ArgoCD base server.
-#   3. Handing full operational lifecycle management over to ArgoCD via the App-of-Apps pattern.
-#
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -17,9 +12,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARGOCD_DIR="$REPO_ROOT/argocd"
 
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
-ARGOCD_CHART_VERSION="${ARGOCD_CHART_VERSION:-}"   # Leave empty for latest or match argocd-values.yaml
+ARGOCD_CHART_VERSION="${ARGOCD_CHART_VERSION:-}" 
 
-CILIUM_VERSION="${CILIUM_VERSION:-1.16.0}"          # Must match argocd/apps/00-cilium.yaml
+CILIUM_VERSION="${CILIUM_VERSION:-1.16.0}"          
+AUTO_SCALER_VERSION="${AUTO_SCALER_VERSION:-9.37.0}" 
+
 CONTROL_PLANE_IP="${CONTROL_PLANE_IP:-}"
 POD_CIDR="${POD_CIDR:-}"
 
@@ -42,16 +39,24 @@ echo -e "${BLUE}    Starting GitOps Cluster Bootstrap Engine     ${NC}"
 echo -e "${BLUE}==================================================${NC}"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 1: Install Cilium (CNI Base Layer)
+# Step 1: Initialize Repositories & Install Core Infrastructure (Pre-ArgoCD)
 # ─────────────────────────────────────────────────────────────────────────────
-info "Step 1/4: Installing Cilium ${CILIUM_VERSION}…"
+info "Step 1/4: Syncing Helm Repositories & Pre-requisites..."
 helm repo add cilium https://helm.cilium.io/ >/dev/null 2>&1 || true
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts       >/dev/null 2>&1 || true
-helm repo update cilium >/dev/null
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo add autoscaler https://kubernetes.github.io/autoscaler >/dev/null 2>&1 || true
+helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
+helm repo update >/dev/null
 
+# 1.1 Prometheus Operator CRDs
+info "Installing Prometheus Operator CRDs…"
 helm upgrade --install prometheus-operator-crds prometheus-community/prometheus-operator-crds \
-  -n monitoring --create-namespace
+  --namespace monitoring \
+  --create-namespace \
+  --wait
 
+# 1.2 Cilium CNI
+info "Installing Cilium ${CILIUM_VERSION}…"
 cilium_set_args=()
 if [[ -n "$CONTROL_PLANE_IP" ]]; then
   cilium_set_args+=(--set "k8sServiceHost=${CONTROL_PLANE_IP}" --set "k8sServicePort=6443")
@@ -70,13 +75,20 @@ helm upgrade --install cilium cilium/cilium \
 wait_for_rollout "daemonset/cilium" "kube-system" "180s"
 wait_for_rollout "deployment/cilium-operator" "kube-system" "120s"
 
+# 1.3 Cluster Autoscaler
+info "Installing Cluster Autoscaler ${AUTO_SCALER_VERSION}…"
+helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
+  --namespace kube-system \
+  --version "$AUTO_SCALER_VERSION" \
+  --values "$REPO_ROOT/k8s/helm/auto-scaler-values.yaml" \
+  --wait --timeout 3m
+
+wait_for_rollout "deployment/cluster-autoscaler" "kube-system" "120s"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 2: Install Argo CD Core
 # ─────────────────────────────────────────────────────────────────────────────
 info "Step 2/4: Installing Argo CD into namespace '${ARGOCD_NAMESPACE}'…"
-helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
-helm repo update argo >/dev/null
-
 version_args=()
 if [[ -n "$ARGOCD_CHART_VERSION" ]]; then
   version_args=(--version "$ARGOCD_CHART_VERSION")
