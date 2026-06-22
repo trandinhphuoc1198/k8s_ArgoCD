@@ -43,7 +43,7 @@ collectorDaemonSet:
     # Restrict log collection to your app namespace.
     # Change to "*" to collect from all namespaces (more noise).
     # Must match APP_NAMESPACE in deploy.sh (default: fastapi)
-    namespaceFilter: "{fastapi,db}"
+    namespaceFilter: "*" #{fastapi,db}
 
 # ---------------------------------------------------------------------------
 # Collector — Aggregator Deployment

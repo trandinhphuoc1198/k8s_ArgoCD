@@ -25,10 +25,10 @@ configs:
     server.insecure: true
 
 server:
-  service:
-    type: NodePort
-    nodePortHttp: 30080
-    nodePortHttps: 30543
+  # service:
+  #   type: NodePort
+  #   nodePortHttp: 30080
+  #   nodePortHttps: 30543
   ingress:
     path: /argocd
 
