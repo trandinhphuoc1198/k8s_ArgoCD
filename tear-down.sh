@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tear-down.sh (Automated Cluster Purge & Resource Destruction Script)
+# tear-down.sh (Aggressive Multi-Application Cluster Purge)
 # Location: Root folder (C:\...)
 #
 set -euo pipefail
@@ -8,7 +8,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 
-# Terminal Formatting Colors
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[1;34m'
@@ -18,100 +17,92 @@ info() { echo -e "\n${BLUE}==>${NC} \033[1m$1\033[0m"; }
 warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 
 echo -e "${RED}==================================================${NC}"
-echo -e "${RED}    Starting Automated Cluster Resource Purge     ${NC}"
+echo -e "${RED}    Executing Aggressive Global Cluster Purge    ${NC}"
 echo -e "${RED}==================================================${NC}"
 
+# Get all non-system namespaces to target
+TARGET_NAMESPACES=$(kubectl get ns -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep -vE '^(kube-system|kube-public|kube-node-lease)$' || true)
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 1: Purge PVCs and PVs FIRST (While Storage Drivers are Active)
+# Step 1: Strip Application Management Frameworks First
 # ─────────────────────────────────────────────────────────────────────────────
-info "Step 1/6: Purging all PVCs and PVs before stripping storage drivers..."
-namespaces=$(kubectl get ns -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
-for ns in $namespaces; do
-    if [[ "$ns" =~ ^(kube-system|kube-public|kube-node-lease)$ ]]; then
-        continue
-    fi
+info "Step 1/5: Clearing ArgoCD GitOps tracking apps..."
+if kubectl get application root-app -n "$ARGOCD_NAMESPACE" >/dev/null 2>&1; then
+    kubectl patch application root-app -n "$ARGOCD_NAMESPACE" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+    kubectl delete application root-app -n "$ARGOCD_NAMESPACE" --timeout=10s || true
+fi
+
+apps=$(kubectl get applications -n "$ARGOCD_NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+for app in $apps; do
+    kubectl patch application "$app" -n "$ARGOCD_NAMESPACE" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+    kubectl delete application "$app" -n "$ARGOCD_NAMESPACE" --timeout=10s || true
+done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 2: Aggressive Workload Nuke (Deployments, StatefulSets, DaemonSets, Pods)
+# ─────────────────────────────────────────────────────────────────────────────
+info "Step 2/5: Hunting and breaking all running application workloads..."
+for ns in $TARGET_NAMESPACES; do
+    echo "Processing namespace: [$ns]"
     
+    # Target all controller types that keep bringing pods back to life
+    for resource in deployments statefulsets daemonsets replicasets jobs cronjobs pods; do
+        items=$(kubectl get "$resource" -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+        if [[ -n "$items" ]]; then
+            echo "  -> Found $resource elements. Stripping finalizers and forcing deletion..."
+            for item in $items; do
+                kubectl patch "$resource" "$item" -n "$ns" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
+            done
+            # Background the delete commands so they execute simultaneously across apps
+            kubectl delete "$resource" --all -n "$ns" --force --grace-period=0 --timeout=15s >/dev/null 2>&1 &
+        fi
+    done
+done
+wait # Wait for background force deletions to clear
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 3: Purge PVCs and PVs (While cloud storage controllers are still online)
+# ─────────────────────────────────────────────────────────────────────────────
+info "Step 3/5: Erasing persistent storage configurations..."
+for ns in $TARGET_NAMESPACES; do
     pvc_list=$(kubectl get pvc -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
     if [[ -n "$pvc_list" ]]; then
-        echo "Found PVCs in namespace [$ns]. Initializing deletion..."
-        # Strip finalizers to prevent stuck cloud storage attachments
         for pvc in $pvc_list; do
             kubectl patch pvc "$pvc" -n "$ns" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
         done
-        kubectl delete pvc --all -n "$ns" --timeout=45s || true
+        kubectl delete pvc --all -n "$ns" --force --grace-period=0 --timeout=20s >/dev/null 2>&1 &
     fi
 done
+wait
 
-echo "Purging lingering Persistent Volumes (PVs)..."
 pv_list=$(kubectl get pv -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
 for pv in $pv_list; do
     kubectl patch pv "$pv" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
 done
-kubectl delete pv --all --timeout=30s || true
+kubectl delete pv --all --force --grace-period=0 --timeout=20s >/dev/null 2>&1 || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 2: Remove Root App and Patch Finalizers
+# Step 4: Uninstall Helm Releases (Infrastructure Drivers)
 # ─────────────────────────────────────────────────────────────────────────────
-info "Step 2/6: Removing ArgoCD Root App..."
-if kubectl get application root-app -n "$ARGOCD_NAMESPACE" >/dev/null 2>&1; then
-    kubectl delete application root-app -n "$ARGOCD_NAMESPACE" --timeout=45s || {
-        warn "Root app deletion timed out. Force-clearing finalizers..."
-        kubectl patch application root-app -n "$ARGOCD_NAMESPACE" -p '{"metadata":{"finalizers":null}}' --type=merge || true
-    }
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 3: Delete All Downstream ArgoCD Applications & Projects
-# ─────────────────────────────────────────────────────────────────────────────
-info "Step 3/6: Purging managed applications and resources..."
-apps=$(kubectl get applications -n "$ARGOCD_NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
-for app in $apps; do
-    echo "Deleting application: $app"
-    kubectl patch application "$app" -n "$ARGOCD_NAMESPACE" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
-    kubectl delete application "$app" -n "$ARGOCD_NAMESPACE" --cascade=foreground --timeout=20s 2>/dev/null || true
-done
-
-if [ -d "$REPO_ROOT/argocd/projects" ]; then
-    echo "Deleting AppProjects..."
-    kubectl delete -f "$REPO_ROOT/argocd/projects/" --ignore-not-found=true --timeout=20s || true
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 4: Purge Bootstrap Helm Releases (ArgoCD, Autoscaler, Cilium)
-# ─────────────────────────────────────────────────────────────────────────────
-info "Step 4/6: Uninstalling Base Helm Releases..."
-echo "Uninstalling Argo CD..."
+info "Step 4/5: Disabling core system engine Helm deployments..."
 helm uninstall argocd --namespace "$ARGOCD_NAMESPACE" 2>/dev/null || true
-
-echo "Uninstalling Cluster Autoscaler..."
 helm uninstall cluster-autoscaler --namespace kube-system 2>/dev/null || true
-
-echo "Uninstalling Cilium..."
 helm uninstall cilium --namespace kube-system 2>/dev/null || true
-
-echo "Uninstalling Prometheus Operator CRDs..."
 helm uninstall prometheus-operator-crds --namespace monitoring 2>/dev/null || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 5: Clean Up Target Namespaces
+# Step 5: Wipe Out Residual Namespaces
 # ─────────────────────────────────────────────────────────────────────────────
-info "Step 5/6: Terminating operational Namespaces..."
-for ns in "$ARGOCD_NAMESPACE" "monitoring"; do
+info "Step 5/5: Sweeping remaining namespaces..."
+for ns in $TARGET_NAMESPACES; do
     if kubectl get namespace "$ns" >/dev/null 2>&1; then
-        echo "Deleting namespace: $ns"
-        kubectl delete namespace "$ns" --timeout=45s || {
-            warn "Namespace $ns stuck. Forcing cluster finalizer release..."
+        kubectl delete namespace "$ns" --timeout=20s || {
+            # Direct raw etcd patch override if the namespace stays stuck
             kubectl get namespace "$ns" -o json | tr -d "\n" | sed 's/"spec":\s*{\s*"finalizers":\s*\[[^]]*\]\s*}/"spec":{"finalizers":[]}/g' | kubectl replace --raw "/api/v1/namespaces/$ns/finalize" -f - || true
         }
     fi
 done
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 6: Verification Output
-# ─────────────────────────────────────────────────────────────────────────────
-info "Step 6/6: Verifying cleanup state..."
-kubectl get pvc,pv,apps,appprojects --all-namespaces 2>/dev/null || echo "No tracked GitOps assets remain."
-
 echo -e "\n${RED}==================================================${NC}"
-echo -e "${RED}       Teardown Completed Successfully!           ${NC}"
+echo -e "${RED}   All discovered app pods and drivers purged!    ${NC}"
 echo -e "${RED}==================================================${NC}"
