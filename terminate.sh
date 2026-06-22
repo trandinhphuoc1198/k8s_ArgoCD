@@ -152,13 +152,6 @@ warn "This will PERMANENTLY destroy ALL cluster resources and AWS EBS volumes."
 warn "Namespaces removed: ${APP_NAMESPACE}, ${DB_NAMESPACE}, ${MONITORING_NAMESPACE},"
 warn "  ${OTEL_NAMESPACE}, ${INGRESS_NAMESPACE}, ${KEDA_NAMESPACE}, ${CNPG_NAMESPACE},"
 warn "  ${ARGOCD_NAMESPACE}, and relevant kube-system components."
-echo
-read -r -p "  Type the cluster name or any string to confirm teardown: " CONFIRM
-if [[ -z "$CONFIRM" ]]; then
-  error "Aborted — nothing was entered."
-  exit 1
-fi
-echo
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 1 — Disarm Argo CD (stop self-heal fighting us)

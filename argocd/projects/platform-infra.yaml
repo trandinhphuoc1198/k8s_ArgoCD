@@ -22,6 +22,8 @@ spec:
     - "https://grafana-community.github.io/helm-charts"
     - "https://kedacore.github.io/charts"
     - "https://cloudnative-pg.github.io/charts"
+    - "https://kubernetes-sigs.github.io/metrics-server/"
+
 
   # Only the system namespaces these specific releases land in, plus
   # 'argocd' itself (root-app creates the child Application resources
