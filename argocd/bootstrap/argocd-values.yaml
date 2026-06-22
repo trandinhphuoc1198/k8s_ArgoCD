@@ -30,6 +30,7 @@ server:
   #   nodePortHttp: 30080
   #   nodePortHttps: 30543
   ingress:
+    enabled: true
     path: /argocd
 
   resources:
@@ -56,7 +57,7 @@ controller:
       memory: 512Mi
     limits:
       cpu: 500m
-      memory: 1Gi
+      memory: 1.5Gi
 
 applicationSet:
   resources:

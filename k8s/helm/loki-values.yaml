@@ -78,7 +78,7 @@ chunksCache:
   resources:
     requests:
       cpu: 100m
-      memory: 300Mi         # set slightly above allocatedMemory to give memcached headroom
+      memory: 128Mi         # set slightly above allocatedMemory to give memcached headroom
     limits:
       cpu: 500m
       memory: 400Mi
@@ -89,7 +89,7 @@ resultsCache:
   resources:
     requests:
       cpu: 100m
-      memory: 300Mi
+      memory: 128Mi
     limits:
       cpu: 500m
       memory: 400Mi
