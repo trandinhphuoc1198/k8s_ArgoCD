@@ -1,3 +1,6 @@
+# Place this file at: your NGINX Ingress Helm values file
+# Only the location path changed — from /healthz to /alb-health
+
 controller:
   replicaCount: 1
   topologySpreadConstraints:
@@ -14,7 +17,7 @@ controller:
       opentelemetry-trust-incoming-span: "true"
       opentelemetry-operation-name: "$request_method $uri"
       server-snippet: |
-        location /healthz {
+        location /alb-health {
           access_log off;
           return 200 "ok";
           add_header Content-Type text/plain;
