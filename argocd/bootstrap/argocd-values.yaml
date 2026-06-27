@@ -36,7 +36,7 @@ server:
   #   nodePortHttps: 30543
   ingress:
     enabled: true
-    hostname: "*"
+    # hostname: "*"
     ingressClassName: nginx
     path: /argocd
 
