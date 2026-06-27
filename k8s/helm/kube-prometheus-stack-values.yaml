@@ -1,9 +1,9 @@
 grafana:
   adminPassword: kagura12
   
-  env:
-    GF_SERVER_ROOT_URL: http://aa-123124710.ap-northeast-1.elb.amazonaws.com/grafana/
-    GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+  # env:
+  #   GF_SERVER_ROOT_URL: http://aa-123124710.ap-northeast-1.elb.amazonaws.com/grafana/
+  #   GF_SERVER_SERVE_FROM_SUB_PATH: "true"
 
   persistence:
     enabled: true
@@ -18,8 +18,9 @@ grafana:
   ingress:
     enabled: true
     ingressClassName: nginx
-    path: /grafana
-    pathType: Prefix
+    path: /
+    hosts:
+      - grafana.phuoctd6.shop
 
   resources:
     requests:
@@ -38,8 +39,7 @@ prometheus:
         labelSelector:
           matchLabels:
             app.kubernetes.io/name: prometheus
-    externalUrl: http://aa-123124710.ap-northeast-1.elb.amazonaws.com/prometheus/
-    routePrefix: /prometheus
+    # externalUrl: http://aa-123124710.ap-northeast-1.elb.amazonaws.com/prometheus/
     retention: 2d
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
@@ -65,9 +65,9 @@ prometheus:
   ingress:
     enabled: true
     ingressClassName: nginx
-    path: 
-      - /prometheus
-    pathType: Prefix
+    path: /
+    hosts:
+      - grafana.phuoctd6.shop
 
 alertmanager:
   enabled: false

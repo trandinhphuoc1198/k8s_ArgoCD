@@ -89,9 +89,7 @@ hubble:
       enabled: true
       className: nginx
       hosts:
-        - ""   # set to your ALB hostname, or leave blank and use port-forward
-      paths:
-        - /hubble
+        - hubble.phuoctd6.shop   # set to your ALB hostname, or leave blank and use port-forward
     resources:
       requests:
         cpu: 50m
