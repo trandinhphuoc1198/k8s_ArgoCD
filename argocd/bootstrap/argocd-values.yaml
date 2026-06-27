@@ -36,7 +36,7 @@ server:
   #   nodePortHttps: 30543
   ingress:
     enabled: true
-    # hostname: "*"
+    hostname: "phuoctd6.shop"
     ingressClassName: nginx
     path: /argocd
 
