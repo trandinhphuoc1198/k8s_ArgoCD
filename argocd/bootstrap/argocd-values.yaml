@@ -74,11 +74,11 @@ repoServer:
 controller:
   resources:
     requests:
-      cpu: 250m
-      memory: 1Gi
+      cpu: 300m
+      memory: 1.2Gi
     limits:
-      cpu: 700m
-      memory: 1Gi
+      cpu: 1000m
+      memory: 1.2Gi
 
 applicationSet:
   resources:
