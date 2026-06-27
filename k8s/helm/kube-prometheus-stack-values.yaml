@@ -67,7 +67,7 @@ prometheus:
     ingressClassName: nginx
     path: /
     hosts:
-      - grafana.phuoctd6.shop
+      - prometheus.phuoctd6.shop
 
 alertmanager:
   enabled: false
