@@ -27,7 +27,7 @@ configs:
     server.rootpath: "/argocd"
   cm:
     # Required: set the base href for the web UI
-    url: "https://phuoctd6.shop/argocd"
+    url: "https://argocd.phuoctd6.shop/"
 
 server:
   # service:
@@ -36,9 +36,9 @@ server:
   #   nodePortHttps: 30543
   ingress:
     enabled: true
-    hostname: "phuoctd6.shop"
+    hostname: "argocd.phuoctd6.shop"
     ingressClassName: nginx
-    path: /argocd
+    path: /
 
   resources:
     requests:
