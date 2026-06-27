@@ -152,6 +152,39 @@ warn "This will PERMANENTLY destroy ALL cluster resources and AWS EBS volumes."
 warn "Namespaces removed: ${APP_NAMESPACE}, ${DB_NAMESPACE}, ${MONITORING_NAMESPACE},"
 warn "  ${OTEL_NAMESPACE}, ${INGRESS_NAMESPACE}, ${KEDA_NAMESPACE}, ${CNPG_NAMESPACE},"
 warn "  ${ARGOCD_NAMESPACE}, and relevant kube-system components."
+echo
+read -r -p "  Type the cluster name or any string to confirm teardown: " CONFIRM
+if [[ -z "$CONFIRM" ]]; then
+  error "Aborted — nothing was entered."
+  exit 1
+fi
+echo
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Snapshot EBS volume IDs from all PVs NOW, before anything is deleted.
+#
+# WHY: The CSI driver sends DeleteVolume to AWS when a PVC is deleted — but
+# only if the driver pod is still alive. In the real run the driver was already
+# gone before step 3 ran, so the EBS volumes were orphaned even though the PVC
+# objects disappeared. By capturing volumeHandles now we can always fall back
+# to deleting them directly via AWS CLI in step 5, regardless of driver state.
+# ─────────────────────────────────────────────────────────────────────────────
+info "Snapshotting EBS volume IDs from current PVs…"
+declare -A PV_TO_VOLID
+while IFS= read -r line; do
+  pv_name=$(echo "$line" | awk '{print $1}')
+  vol_id=$(echo "$line" | awk '{print $2}')
+  [[ -n "$pv_name" && -n "$vol_id" && "$vol_id" != "<none>" ]] && PV_TO_VOLID["$pv_name"]="$vol_id"
+done < <(kubectl get pv -o custom-columns='NAME:.metadata.name,VOLID:.spec.csi.volumeHandle' --no-headers 2>/dev/null || true)
+
+if [[ ${#PV_TO_VOLID[@]} -gt 0 ]]; then
+  info "Found ${#PV_TO_VOLID[@]} EBS volume(s) to track:"
+  for pv in "${!PV_TO_VOLID[@]}"; do
+    echo "    PV: $pv  →  EBS: ${PV_TO_VOLID[$pv]}"
+  done
+else
+  info "No EBS-backed PVs found — nothing to track."
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 1 — Disarm Argo CD (stop self-heal fighting us)
@@ -171,7 +204,7 @@ if kubectl get namespace "$ARGOCD_NAMESPACE" &>/dev/null; then
     grafana-dashboards loki tempo \
     kube-prometheus-stack otel-collectors \
     keda cnpg-operator opentelemetry-operator \
-    ingress-nginx aws-ebs-csi-driver cluster-autoscaler \
+    ingress-nginx aws-ebs-csi-driver cluster-autoscaler metrics-server \
     prometheus-operator-crds cilium; do
     argocd_delete_app "$app"
   done
@@ -269,10 +302,22 @@ if ! command -v aws &>/dev/null; then
   warn "    --filters Name=status,Values=available \\"
   warn "              Name=tag-key,Values=kubernetes.io/created-for/pvc/name"
 else
-  # Resolve region if not set
+  # Resolve region if not set.
+  # Uses IMDSv2 (token-required) — works even when IMDSv1 is disabled, which
+  # is the default on newer EC2 launch templates. IMDSv1 (direct curl to
+  # 169.254.169.254 without a token) fails silently on those instances, which
+  # is why the previous run showed "Could not determine AWS region".
   if [[ -z "$AWS_REGION" ]]; then
-    AWS_REGION=$(curl -sf --connect-timeout 2 \
-      http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || true)
+    IMDS_TOKEN=$(curl -sf --connect-timeout 2 -X PUT \
+      "http://169.254.169.254/latest/api/token" \
+      -H "X-aws-ec2-metadata-token-ttl-seconds: 30" 2>/dev/null || true)
+    if [[ -n "$IMDS_TOKEN" ]]; then
+      AWS_REGION=$(curl -sf --connect-timeout 2 \
+        -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+        "http://169.254.169.254/latest/meta-data/placement/region" 2>/dev/null || true)
+    fi
+    # Final fallback: check AWS CLI config
+    [[ -z "$AWS_REGION" ]] && AWS_REGION=$(aws configure get region 2>/dev/null || true)
   fi
   if [[ -z "$AWS_REGION" ]]; then
     warn "Could not determine AWS region. Set AWS_REGION env var and re-run the"
@@ -300,28 +345,54 @@ else
       --query 'Volumes[*].{ID:VolumeId,Size:Size,PVC:Tags[?Key==`kubernetes.io/created-for/pvc/name`]|[0].Value}' \
       --output table 2>/dev/null || true)
 
-    if [[ -z "$ORPHANS" || "$ORPHANS" == *"None"* ]]; then
+    # Build combined list: tag-based discovery + anything we snapshotted from
+    # PVs at startup that isn't already confirmed deleted. Belt-and-suspenders:
+    # the tag filter catches volumes whose PVCs were deleted properly (CSI sets
+    # status=available); the snapshot list catches volumes whose CSI driver was
+    # gone before deletion so they may still be in-use or available state.
+    TAGGED_IDS=$(aws ec2 describe-volumes \
+      --region "$AWS_REGION" \
+      --filters "${filters[@]}" \
+      --query 'Volumes[*].VolumeId' \
+      --output text 2>/dev/null || true)
+
+    # Merge with snapshotted IDs, dedup
+    ALL_IDS=()
+    for vol_id in $TAGGED_IDS; do ALL_IDS+=("$vol_id"); done
+    for pv in "${!PV_TO_VOLID[@]}"; do
+      vol="${PV_TO_VOLID[$pv]}"
+      # Only add if not already in list
+      if [[ ! " ${ALL_IDS[*]} " =~ " ${vol} " ]]; then
+        ALL_IDS+=("$vol")
+        warn "Volume $vol (from PV $pv) not found by tag filter — adding from snapshot."
+      fi
+    done
+
+    if [[ ${#ALL_IDS[@]} -eq 0 ]]; then
       info "✅ No orphaned EBS volumes found."
     else
-      warn "Orphaned EBS volumes found (status=available, PVC tag present):"
-      echo "$ORPHANS"
+      warn "EBS volumes to clean up:"
+      for vol_id in "${ALL_IDS[@]}"; do
+        # Show state for each
+        state=$(aws ec2 describe-volumes --region "$AWS_REGION" \
+          --volume-ids "$vol_id" \
+          --query 'Volumes[0].State' --output text 2>/dev/null || echo "unknown")
+        echo "    $vol_id  (state: $state)"
+      done
       echo
-      read -r -p "  Delete ALL listed orphaned volumes? [y/N]: " DELETE_ORPHANS
+      read -r -p "  Delete ALL listed volumes? [y/N]: " DELETE_ORPHANS
       if [[ "${DELETE_ORPHANS,,}" == "y" ]]; then
-        ORPHAN_IDS=$(aws ec2 describe-volumes \
-          --region "$AWS_REGION" \
-          --filters "${filters[@]}" \
-          --query 'Volumes[*].VolumeId' \
-          --output text 2>/dev/null || true)
-        for vol_id in $ORPHAN_IDS; do
+        for vol_id in "${ALL_IDS[@]}"; do
           info "Deleting EBS volume ${vol_id}…"
           aws ec2 delete-volume --region "$AWS_REGION" --volume-id "$vol_id" \
-            && info "  Deleted: $vol_id" \
-            || warn "  Failed to delete: $vol_id (may already be gone)"
+            && info "  ✅ Deleted: $vol_id" \
+            || warn "  Failed to delete: $vol_id (may already be gone or still attached)"
         done
       else
-        warn "Skipped orphan deletion. Delete manually:"
-        warn "  aws ec2 delete-volume --region ${AWS_REGION} --volume-id <vol-id>"
+        warn "Skipped. Delete manually:"
+        for vol_id in "${ALL_IDS[@]}"; do
+          warn "  aws ec2 delete-volume --region ${AWS_REGION} --volume-id ${vol_id}"
+        done
       fi
     fi
   fi
@@ -347,6 +418,7 @@ helm_uninstall keda          "$KEDA_NAMESPACE"
 helm_uninstall cnpg          "$CNPG_NAMESPACE"
 helm_uninstall ingress-nginx "$INGRESS_NAMESPACE"
 helm_uninstall cluster-autoscaler "kube-system"
+helm_uninstall metrics-server    "kube-system"
 
 # EBS CSI driver — must stay alive until ALL PVs are confirmed gone.
 # If this uninstalls while PVs still exist, DeleteVolume calls fail silently.
@@ -377,8 +449,19 @@ kubectl delete appprojects --all -n "$ARGOCD_NAMESPACE" --ignore-not-found 2>/de
 # Step 8 — Remove Cilium (last — keep pod networking alive until now)
 # ─────────────────────────────────────────────────────────────────────────────
 step "8/9  Removing Cilium (CNI — done last to preserve pod networking)"
-helm_uninstall cilium "kube-system"
-# Cilium installs several CRDs that need cleaning up
+# Do NOT use helm_uninstall here — that uses --wait, which hangs indefinitely
+# because the moment Cilium DaemonSet pods terminate, pod networking goes down,
+# kubectl loses its connection to the API server, and the command never returns.
+# --no-hooks skips pre-delete hooks (nothing critical in Cilium's hooks for a
+# full teardown). We accept the error and move on; the nodes are going away.
+if helm status cilium -n kube-system &>/dev/null; then
+  info "Uninstalling Cilium (no-wait — connection will drop momentarily)…"
+  helm uninstall cilium -n kube-system --no-hooks --timeout 10s 2>/dev/null || true
+  info "Cilium uninstall issued (connection loss after this is expected)."
+else
+  info "Release 'cilium' not found in 'kube-system' — skipping."
+fi
+# Best-effort CRD cleanup — may fail if connection is already gone
 kubectl delete crd -l app.kubernetes.io/part-of=cilium --ignore-not-found 2>/dev/null || true
 
 # ─────────────────────────────────────────────────────────────────────────────
