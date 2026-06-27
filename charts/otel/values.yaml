@@ -21,7 +21,7 @@ collectorDaemonSet:
   enabled: true
   name: otel-collector-ds
 
-  # resources:
+  resources: {}
   #   limits:
   #     cpu: 200m
   #     memory: 200Mi
