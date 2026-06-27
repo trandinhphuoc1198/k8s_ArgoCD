@@ -32,10 +32,10 @@ grafana:
   resources:
     requests:
       cpu: 300m
-      memory: 700Mi
+      memory: 600Mi
     limits:
       cpu: 600m
-      memory: 1Gi
+      memory: 700Mi
 
 prometheus:
   prometheusSpec:
