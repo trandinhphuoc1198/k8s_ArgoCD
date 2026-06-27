@@ -70,7 +70,13 @@ prometheus:
       - prometheus.phuoctd6.shop
 
 alertmanager:
-  enabled: false
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - alertmanager.phuoctd6.shop
+    paths:
+      - /
 
 kube-state-metrics:
   resources:
