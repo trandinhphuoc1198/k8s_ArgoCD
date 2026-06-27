@@ -24,10 +24,10 @@ configs:
     # Put a real TLS terminator (ALB/ingress) in front later if needed.
     server.insecure: true
     # Required: ArgoCD server must know its root path so asset URLs are correct
-    server.rootpath: "/"
-  cm:
-    # Required: set the base href for the web UI
-    url: "https://argocd.phuoctd6.shop/"
+  #   server.rootpath: "/"
+  # cm:
+  #   # Required: set the base href for the web UI
+  #   url: "https://argocd.phuoctd6.shop/"
 
 server:
   # service:
