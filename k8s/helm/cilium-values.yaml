@@ -35,7 +35,7 @@ ipam:
 kubeProxyReplacement: "true"
 
 # Filled in at install time via --set
-k8sServiceHost: "auto"
+k8sServiceHost: "10.0.1.10"
 k8sServicePort: "6443"
 
 # ── NodePort ──────────────────────────────────────────────────────────────────
