@@ -38,8 +38,7 @@ server:
     enabled: true
     hostname: "*"
     ingressClassName: nginx
-
-    paths: /argocd
+    path: /argocd
 
   resources:
     requests:
