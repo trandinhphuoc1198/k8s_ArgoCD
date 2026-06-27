@@ -60,7 +60,7 @@ prometheus:
         memory: 512Mi
       limits:
         cpu: 300m
-        memory: 1Gi
+        memory: 800Mi
 
   ingress:
     enabled: true

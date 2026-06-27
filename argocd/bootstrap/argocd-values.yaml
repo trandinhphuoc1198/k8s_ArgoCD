@@ -23,6 +23,11 @@ configs:
     # UI/CLI work over plain HTTP without cert wrangling for a first pass.
     # Put a real TLS terminator (ALB/ingress) in front later if needed.
     server.insecure: true
+    # Required: ArgoCD server must know its root path so asset URLs are correct
+    server.rootpath: "/argocd"
+  cm:
+    # Required: set the base href for the web UI
+    url: "https://phuoctd6.shop/argocd"
 
 server:
   # service:
@@ -31,8 +36,10 @@ server:
   #   nodePortHttps: 30543
   ingress:
     enabled: true
-    ingressClassName: nginx
-    path: /argocd
+    hostname: "*"
+
+    paths:
+      - /argocd
 
   resources:
     requests:
@@ -55,10 +62,10 @@ controller:
   resources:
     requests:
       cpu: 250m
-      memory: 512Mi
+      memory: 1.3Gi
     limits:
       cpu: 700m
-      memory: 1Gi
+      memory: 1.4Gi
 
 applicationSet:
   resources:
