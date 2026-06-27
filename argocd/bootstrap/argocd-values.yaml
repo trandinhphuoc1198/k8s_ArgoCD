@@ -61,10 +61,10 @@ controller:
   resources:
     requests:
       cpu: 250m
-      memory: 1Gi
+      memory: 700Mi
     limits:
       cpu: 700m
-      memory: 1.4Gi
+      memory: 1Gi
 
 applicationSet:
   resources:
