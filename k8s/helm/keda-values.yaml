@@ -7,24 +7,24 @@ resources:
   operator:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
     limits:
       cpu: 200m
-      memory: 256Mi
+      memory: 64Mi
   metricApiServer:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
     limits:
       cpu: 200m
-      memory: 256Mi
+      memory: 64Mi
   webhooks:
     requests:
       cpu: 50m
       memory: 64Mi
     limits:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging:

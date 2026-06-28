@@ -21,13 +21,13 @@ collectorDaemonSet:
   enabled: true
   name: otel-collector-ds
 
-  resources: {}
-  #   limits:
-  #     cpu: 200m
-  #     memory: 200Mi
-  #   requests:
-  #     cpu: 100m
-  #     memory: 100Mi
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 100Mi
 
   # Both protocols enabled:
   #   gRPC (4317) — used by other cluster services
@@ -58,7 +58,7 @@ collectorDeployment:
   resources:
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 128Mi
     requests:
       cpu: 250m
       memory: 128Mi

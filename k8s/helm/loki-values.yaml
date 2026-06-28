@@ -45,7 +45,7 @@ singleBinary:
       memory: 200Mi         
     limits:
       cpu: 500m
-      memory: 300Mi
+      memory: 200Mi
 
 
 # Zero out replica counts of other deployment modes
@@ -85,10 +85,10 @@ chunksCache:
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi         # set slightly above allocatedMemory to give memcached headroom
+      memory: 64Mi         # set slightly above allocatedMemory to give memcached headroom
     limits:
       cpu: 500m
-      memory: 400Mi
+      memory: 64Mi
 
 resultsCache:
   enabled: true             # note: true not "enabled" (your current value is a string bug)
@@ -96,10 +96,10 @@ resultsCache:
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
     limits:
       cpu: 500m
-      memory: 400Mi
+      memory: 64Mi
 
 monitoring:
   serviceMonitor:

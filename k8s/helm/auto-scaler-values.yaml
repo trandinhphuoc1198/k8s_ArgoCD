@@ -27,10 +27,10 @@ extraArgs:
 resources:
   requests:
     cpu: 100m
-    memory: 150Mi
+    memory: 128Mi
   limits:
     cpu: 100m
-    memory: 600Mi
+    memory: 128Mi
 
 
 # Node selector — pin CA to a stable node (optional but recommended)

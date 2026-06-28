@@ -79,10 +79,10 @@ distributor:
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
     limits:
       cpu: 500m
-      memory: 256Mi
+      memory: 64Mi
 
 # ---------------------------------------------------------------------------
 # Ingester
@@ -98,7 +98,7 @@ ingester:
       memory: 128Mi
     limits:
       cpu: 1000m
-      memory: 512Mi
+      memory: 128Mi
 
   persistence:
     enabled: true
@@ -127,10 +127,10 @@ querier:
   resources:
     requests:
       cpu: 200m
-      memory: 128Mi
+      memory: 64Mi
     limits:
       cpu: 500m
-      memory: 1Gi
+      memory: 64Mi
 
   extraEnv:
     - name: AWS_REGION
@@ -150,10 +150,10 @@ queryFrontend:
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
     limits:
       cpu: 300m
-      memory: 256Mi
+      memory: 64Mi
 
 # ---------------------------------------------------------------------------
 # Compactor
@@ -165,10 +165,10 @@ compactor:
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
     limits:
       cpu: 500m
-      memory: 1Gi
+      memory: 64Mi
 
   extraEnv:
     - name: AWS_REGION
@@ -191,10 +191,10 @@ memcached:
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 64Mi
     limits:
       cpu: 200m
-      memory: 256Mi
+      memory: 64Mi
 
 # ---------------------------------------------------------------------------
 # ServiceMonitor — scraped by kube-prometheus-stack Prometheus
@@ -208,6 +208,13 @@ metaMonitoring:
 metricsGenerator:
   # -- Specifies whether a metrics-generator should be deployed
   enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 overrides:
   defaults:
