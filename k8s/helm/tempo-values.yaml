@@ -95,10 +95,10 @@ ingester:
   resources:
     requests:
       cpu: 200m
-      memory: 128Mi
+      memory: 200Mi
     limits:
       cpu: 1000m
-      memory: 128Mi
+      memory: 200Mi
 
   persistence:
     enabled: true

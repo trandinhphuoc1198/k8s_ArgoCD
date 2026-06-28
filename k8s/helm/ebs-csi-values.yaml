@@ -24,6 +24,7 @@ controller:
       memory: 128Mi
 
 node:
+  priorityClassName: system-node-critical
   resources:
     requests:
       cpu: 20m

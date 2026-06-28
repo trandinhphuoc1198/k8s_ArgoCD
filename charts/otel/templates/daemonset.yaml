@@ -21,6 +21,7 @@ metadata:
     app.kubernetes.io/component: collector-daemonset
 spec:
   mode: daemonset
+  priorityClassName: system-node-critical
   serviceAccount: otel-collector
 
   resources:
