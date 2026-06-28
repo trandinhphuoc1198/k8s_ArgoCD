@@ -38,5 +38,11 @@ spec:
   ignoreDifferences:
     - group: monitoring.coreos.com
       kind: ServiceMonitor
-      jqPathExpressions:
-        - .spec.endpoints[].relabelings[]? | select(.action == "replace")
+      name: cilium-agent
+      jsonPointers:
+        - /spec/endpoints/0/relabelings
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+      name: hubble
+      jsonPointers:
+        - /spec/endpoints/0/relabelings
