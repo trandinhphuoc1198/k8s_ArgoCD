@@ -27,7 +27,7 @@ spec:
     poolMode: {{ .Values.pooler.poolMode }}
     parameters:
       client_tls_sslmode: "{{ .Values.pooler.rw.ssl }}"
-      server_tls_sslmode: "enable"
+      server_tls_sslmode: "prefer"
       max_client_conn: "{{ .Values.pooler.rw.maxClientConn }}"
       default_pool_size: "{{ .Values.pooler.rw.defaultPoolSize }}"
       # Required for async frameworks (asyncpg, SQLAlchemy async)
@@ -78,7 +78,7 @@ spec:
     poolMode: {{ .Values.pooler.poolMode }}
     parameters:
       client_tls_sslmode: "{{ .Values.pooler.ro.ssl }}"
-      server_tls_sslmode: "enable"
+      server_tls_sslmode: "prefer"
       max_client_conn: "{{ .Values.pooler.ro.maxClientConn }}"
       default_pool_size: "{{ .Values.pooler.ro.defaultPoolSize }}"
       server_reset_query: ""
