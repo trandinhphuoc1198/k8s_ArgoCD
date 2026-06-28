@@ -168,7 +168,7 @@ compactor:
       memory: 128Mi
     limits:
       cpu: 500m
-      memory: 128Mi
+      memory: 200Mi
 
   extraEnv:
     - name: AWS_REGION
