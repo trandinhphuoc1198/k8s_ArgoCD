@@ -66,6 +66,7 @@ pooler:
 
   rw:
     enabled: true
+    ssl: disable
     name: pg-pooler-rw
     instances: 2            # 2 PgBouncer pods for HA on the write path
     maxClientConn: 200      # max simultaneous client connections
@@ -80,6 +81,7 @@ pooler:
 
   ro:
     enabled: true
+    ssl: disable
     name: pg-pooler-ro
     instances: 2            # 2 PgBouncer pods for HA on the read path
     maxClientConn: 400      # reads are higher volume — allow more clients
