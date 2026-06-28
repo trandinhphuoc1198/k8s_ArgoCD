@@ -148,3 +148,20 @@ rollOutCiliumPods: true
 
 # ── Identity ──────────────────────────────────────────────────────────────────
 identityAllocationMode: crd
+
+# authentication:
+#   enabled: true
+#   mutual:
+#     spire:
+#       enabled: true
+#       install:
+#         enabled: true                # let the Cilium chart deploy SPIRE for you
+#         server:
+#           dataStorage:
+#             enabled: true
+#             storageClass: ebs-csi     # reuse the same StorageClass CNPG already uses
+#             size: 1Gi
+ 
+encryption:
+  enabled: true
+  type: wireguard
