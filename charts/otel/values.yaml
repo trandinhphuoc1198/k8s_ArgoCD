@@ -25,9 +25,9 @@ collectorDaemonSet:
     limits:
       cpu: 200m
       memory: 128Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
 
   # Both protocols enabled:
   #   gRPC (4317) — used by other cluster services

@@ -165,10 +165,10 @@ compactor:
   resources:
     requests:
       cpu: 100m
-      memory: 64Mi
+      memory: 128Mi
     limits:
       cpu: 500m
-      memory: 64Mi
+      memory: 128Mi
 
   extraEnv:
     - name: AWS_REGION
