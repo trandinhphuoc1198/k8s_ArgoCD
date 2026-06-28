@@ -15,14 +15,16 @@ argocd/
     platform-infra.yaml   # AppProject — cluster infra, broad cluster-scope perms
     platform-apps.yaml    # AppProject — fastapi-app + postgresql, no cluster-scope perms
   root-app.yaml            # the "app of apps" — apply once, by hand
-  apps/                    # one Application per Helm release / manifest set
-    00-*.yaml   CRDs + Cilium (CNI)            } project: platform-infra
-    10-*.yaml   independent operators/infra    } project: platform-infra
-    20-kube-prometheus-stack.yaml              } project: platform-infra
-    20-otel-collectors.yaml                    } project: platform-infra
-    20-postgresql.yaml                         } project: platform-apps
-    30-*.yaml   tracing/logging + dashboards   } project: platform-infra
-    40-fastapi-app.yaml                        } project: platform-apps
+  apps/
+    infra/                 # infrastructure layer — lower sync-wave, cluster-wide deps
+      00-*.yaml
+      10-*.yaml
+      20-kube-prometheus-stack.yaml
+      20-otel-collectors.yaml
+      30-*.yaml
+    workloads/            # application layer — higher sync-wave, waits for infra
+      20-postgresql.yaml
+      40-fastapi-app.yaml
 ```
 
 ## Why two projects
@@ -64,10 +66,10 @@ definition, not just by convention.
 | 10 | `cnpg-operator` | — (provides Cluster/Pooler CRDs) |
 | 20 | `kube-prometheus-stack` | wave 0 CRDs, wave 10 StorageClass |
 | 20 | `otel-collectors` | wave 10 OTel CRDs |
-| 20 | `postgresql` | wave 10 CNPG CRDs |
+| 40 | `postgresql` | wave 10 CNPG CRDs, after the infra layer |
 | 30 | `tempo`, `loki` | observability namespace |
 | 30 | `grafana-dashboards` | wave 20 Grafana sidecar |
-| 40 | `fastapi-app` | ingress-nginx, keda, otel, postgresql |
+| 50 | `fastapi-app` | ingress-nginx, keda, otel, postgresql, after infra completes |
 
 `metrics-server` is skipped — it's commented out in your current `deploy.sh`
 too, so this preserves the cluster's actual current state. Add an
@@ -128,8 +130,10 @@ shouldn't need edits.
    kubectl apply -f argocd/projects/
    kubectl apply -f argocd/root-app.yaml
    ```
-   From here, everything under `argocd/apps/` is created and synced
-   automatically, wave by wave.
+   From here, everything under [argocd/apps/infra](argocd/apps/infra) and
+   [argocd/apps/workloads](argocd/apps/workloads) is created and synced automatically,
+   with the application layer ordered after the infrastructure layer via sync
+   waves.
 
 4. **Watch it converge**:
    ```bash
