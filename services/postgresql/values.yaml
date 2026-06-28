@@ -34,7 +34,7 @@ cluster:
 
   postgresql:
     parameters:
-      ssl: off
+      ssl: "off"
       max_connections: "100"
       shared_buffers: "128MB"
       effective_cache_size: "512MB"
