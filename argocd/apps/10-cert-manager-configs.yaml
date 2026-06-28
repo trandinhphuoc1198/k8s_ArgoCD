@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
     targetRevision: main
-    path: cert-manager-configs
+    path: platform/cert-manager
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager

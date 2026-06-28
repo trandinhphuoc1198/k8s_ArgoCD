@@ -16,7 +16,7 @@ spec:
       helm:
         releaseName: metrics-server
         valueFiles:
-          - $values/k8s/helm/metrics-server-values.yaml
+          - $values/platform/upstream-values/metrics-server-values.yaml
     - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
       targetRevision: main
       ref: values

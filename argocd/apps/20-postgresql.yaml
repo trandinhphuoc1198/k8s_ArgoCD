@@ -21,7 +21,7 @@ spec:
   source:
     repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
     targetRevision: main
-    path: charts/postgresql
+    path: services/postgresql
     helm:
       releaseName: postgresql
   destination:

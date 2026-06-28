@@ -18,7 +18,7 @@ spec:
       helm:
         releaseName: loki
         valueFiles:
-          - $values/k8s/helm/loki-values.yaml
+          - $values/platform/upstream-values/loki-values.yaml
     - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
       targetRevision: main
       ref: values

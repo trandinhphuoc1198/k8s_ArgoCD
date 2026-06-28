@@ -21,7 +21,7 @@ spec:
       helm:
         releaseName: cilium
         valueFiles:
-          - $values/k8s/helm/cilium-values.yaml
+          - $values/platform/upstream-values/cilium-values.yaml
     - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
       targetRevision: main
       ref: values

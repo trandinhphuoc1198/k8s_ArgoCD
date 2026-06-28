@@ -14,7 +14,7 @@ spec:
   source:
     repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
     targetRevision: main
-    path: charts/otel
+    path: platform/charts/otel
     helm:
       releaseName: otel
   destination:

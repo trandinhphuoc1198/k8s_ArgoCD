@@ -16,7 +16,7 @@ spec:
       helm:
         releaseName: cluster-autoscaler
         valueFiles:
-          - $values/k8s/helm/auto-scaler-values.yaml
+          - $values/platform/upstream-values/auto-scaler-values.yaml
     - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
       targetRevision: main
       ref: values

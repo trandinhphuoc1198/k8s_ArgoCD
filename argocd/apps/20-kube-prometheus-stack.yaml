@@ -19,7 +19,7 @@ spec:
       helm:
         releaseName: kube-prometheus-stack
         valueFiles:
-          - $values/k8s/helm/kube-prometheus-stack-values.yaml
+          - $values/platform/upstream-values/kube-prometheus-stack-values.yaml
         valuesObject:
           fullnameOverride: monitoring
           grafana:

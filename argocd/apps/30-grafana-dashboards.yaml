@@ -15,7 +15,7 @@ spec:
   source:
     repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
     targetRevision: main
-    path: grafana-dashboards
+    path: platform/grafana-dashboards
     directory:
       recurse: false
       exclude: "*.md"
