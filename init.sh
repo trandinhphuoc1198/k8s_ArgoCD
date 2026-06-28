@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# deploy.sh (All-in-One Bootstrap Script)
-# Location: Root folder (C:\...)
+# init.sh (All-in-One Bootstrap Script)
+# Location: Root folder
 #
 set -euo pipefail
 
@@ -10,6 +10,7 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────────
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARGOCD_DIR="$REPO_ROOT/argocd"
+PLATFORM_DIR="$REPO_ROOT/platform" # Added context for platform directory
 
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 ARGOCD_CHART_VERSION="${ARGOCD_CHART_VERSION:-}" 
@@ -65,10 +66,11 @@ if [[ -n "$POD_CIDR" ]]; then
   cilium_set_args+=(--set "ipam.operator.clusterPoolIPv4PodCIDRList=${POD_CIDR}")
 fi
 
+# UPDATED: Pointed to the new platform/upstream-values location
 helm upgrade --install cilium cilium/cilium \
   --version "$CILIUM_VERSION" \
   --namespace kube-system \
-  --values "$REPO_ROOT/k8s/helm/cilium-values.yaml" \
+  --values "$PLATFORM_DIR/upstream-values/cilium-values.yaml" \
   "${cilium_set_args[@]}" \
   --wait --timeout 5m
 
@@ -77,10 +79,11 @@ wait_for_rollout "deployment/cilium-operator" "kube-system" "120s"
 
 # 1.3 Cluster Autoscaler
 info "Installing Cluster Autoscaler ${AUTO_SCALER_VERSION}…"
+# UPDATED: Pointed to the new platform/upstream-values location
 helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
   --namespace kube-system \
   --version "$AUTO_SCALER_VERSION" \
-  --values "$REPO_ROOT/k8s/helm/auto-scaler-values.yaml" \
+  --values "$PLATFORM_DIR/upstream-values/auto-scaler-values.yaml" \
   --wait --timeout 3m
 
 wait_for_rollout "deployment/cluster-autoscaler" "kube-system" "120s"
