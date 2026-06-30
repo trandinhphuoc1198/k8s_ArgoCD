@@ -1,0 +1,43 @@
+name: Validate manifests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.2
+
+      - name: Lint Helm charts
+        run: |
+          helm lint services/fastapi-app
+          helm lint services/postgresql
+          helm lint platform/charts/otel
+          helm lint helmfile/charts/noop
+
+      - name: Render Helm charts
+        run: |
+          helm template fastapi-app services/fastapi-app >/tmp/fastapi-app-rendered.yaml
+          helm template postgresql services/postgresql >/tmp/postgresql-rendered.yaml
+          helm template otel platform/charts/otel >/tmp/otel-rendered.yaml
+
+      - name: Validate shell scripts
+        run: |
+          bash -n init.sh
+          bash -n init-helmfile.sh
+          bash -n tear-down.sh
+          bash -n helmfile/hooks/cert-manager-configs.sh
+          bash -n helmfile/hooks/grafana-dashboards.sh
