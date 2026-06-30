@@ -1,0 +1,318 @@
+# helmfile.yaml
+# Manual equivalent of the ArgoCD sync-wave deployment order.
+#
+# Deployment order (mirrors ArgoCD sync waves):
+#   Wave 00 — Cilium CNI ONLY (must be fully up before any pod can be scheduled)
+#   Wave 01 — Storage, autoscaler, cert-manager (safe to parallelise once CNI is up)
+#   Wave 10 — cert-manager CRs + all operators (CRDs must land before wave 20)
+#   Wave 20 — kube-prometheus-stack, otel-collectors
+#   Wave 30 — loki, tempo, grafana-dashboards
+#   Wave 40 — postgresql
+#   Wave 50 — fastapi-app
+#
+# Usage:
+#   helmfile apply                        # deploy everything in order
+#   helmfile apply -l wave=00             # deploy only wave 00
+#   helmfile apply -l name=cilium         # deploy a single release
+#   helmfile diff                         # dry-run diff
+#   helmfile destroy -l wave=50           # teardown a single wave
+
+repositories:
+  - name: cilium
+    url: https://helm.cilium.io/
+
+  - name: jetstack
+    url: https://charts.jetstack.io
+
+  - name: ebs-csi
+    url: https://kubernetes-sigs.github.io/aws-ebs-csi-driver
+
+  - name: autoscaler
+    url: https://kubernetes.github.io/autoscaler
+
+  - name: cnpg
+    url: https://cloudnative-pg.github.io/charts
+
+  - name: ingress-nginx
+    url: https://kubernetes.github.io/ingress-nginx
+
+  - name: kedacore
+    url: https://kedacore.github.io/charts
+
+  - name: metrics-server
+    url: https://kubernetes-sigs.github.io/metrics-server/
+
+  - name: opentelemetry
+    url: https://open-telemetry.github.io/opentelemetry-helm-charts
+
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+
+  - name: grafana-community
+    url: https://grafana-community.github.io/helm-charts
+
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+
+releases:
+
+# =============================================================================
+# WAVE 00 — Cilium (CNI first citizen — nothing else can run without it)
+# =============================================================================
+# WARNING: Do NOT `helmfile destroy` this release on a live cluster.
+# Removing Cilium kills cluster networking instantly.
+
+  - name: cilium
+    namespace: kube-system
+    chart: cilium/cilium
+    version: "1.16.0"
+    labels:
+      wave: "00"
+    values:
+      - ../platform/upstream-values/cilium-values.yaml
+    createNamespace: true
+
+# =============================================================================
+# WAVE 01 — Storage, Autoscaler, Cert-Manager
+# All parallelisable once Cilium is up.
+# =============================================================================
+
+  - name: aws-ebs-csi-driver
+    namespace: kube-system
+    chart: ebs-csi/aws-ebs-csi-driver
+    version: "2.62.0"
+    labels:
+      wave: "01"
+    needs:
+      - kube-system/cilium
+    values:
+      - ../platform/upstream-values/ebs-csi-values.yaml
+    createNamespace: true
+
+  - name: cluster-autoscaler
+    namespace: kube-system
+    chart: autoscaler/cluster-autoscaler
+    version: "9.37.0"
+    labels:
+      wave: "01"
+    needs:
+      - kube-system/cilium
+    values:
+      - ../platform/upstream-values/auto-scaler-values.yaml
+    createNamespace: true
+
+  - name: cert-manager
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    version: "1.15.0"
+    labels:
+      wave: "01"
+    needs:
+      - kube-system/cilium
+    values:
+      - values:
+          crds:
+            enabled: true
+            keep: true
+    createNamespace: true
+
+# =============================================================================
+# WAVE 10 — cert-manager CRs + operators
+# cert-manager-configs must land before opentelemetry-operator (needs the CA).
+# =============================================================================
+
+  # Raw manifests: Issuer / Certificate / ClusterIssuer
+  # No upstream chart — uses a noop placeholder + presync hook script.
+  - name: cert-manager-configs
+    namespace: cert-manager
+    chart: ./charts/noop
+    version: "0.1.0"
+    labels:
+      wave: "10"
+    needs:
+      - cert-manager/cert-manager
+    hooks:
+      - events: ["presync"]
+        command: "bash"
+        args:
+          - "./hooks/cert-manager-configs.sh"
+    createNamespace: false   # namespace already exists (created by cert-manager)
+
+  - name: cnpg
+    namespace: cnpg-system
+    chart: cnpg/cloudnative-pg
+    version: "0.28.3"
+    labels:
+      wave: "10"
+    needs:
+      - cert-manager/cert-manager
+    values:
+      - ../platform/upstream-values/cnpg-values.yaml
+    createNamespace: true
+
+  - name: ingress-nginx
+    namespace: ingress-nginx
+    chart: ingress-nginx/ingress-nginx
+    version: "4.15.1"
+    labels:
+      wave: "10"
+    needs:
+      - kube-system/cilium
+    values:
+      - ../platform/upstream-values/ingress-nginx-values.yaml
+    createNamespace: true
+
+  - name: keda
+    namespace: keda
+    chart: kedacore/keda
+    version: "2.20.1"
+    labels:
+      wave: "10"
+    needs:
+      - kube-system/cilium
+    values:
+      - ../platform/upstream-values/keda-values.yaml
+    createNamespace: true
+
+  - name: metrics-server
+    namespace: kube-system
+    chart: metrics-server/metrics-server
+    version: "3.13.1"
+    labels:
+      wave: "10"
+    needs:
+      - kube-system/cilium
+    values:
+      - ../platform/upstream-values/metrics-server-values.yaml
+    createNamespace: true
+
+  - name: opentelemetry-operator
+    namespace: observability
+    chart: opentelemetry/opentelemetry-operator
+    version: "0.114.1"
+    labels:
+      wave: "10"
+    needs:
+      - cert-manager/cert-manager-configs   # needs the ClusterIssuer to be present
+    values:
+      - ../platform/upstream-values/otel-operator-values.yaml
+    createNamespace: true
+
+# =============================================================================
+# WAVE 20 — Observability stack
+# =============================================================================
+
+  - name: kube-prometheus-stack
+    namespace: monitoring
+    chart: prometheus-community/kube-prometheus-stack
+    version: "86.3.2"
+    labels:
+      wave: "20"
+    needs:
+      - kube-system/aws-ebs-csi-driver
+      - cert-manager/cert-manager
+    values:
+      - ../platform/upstream-values/kube-prometheus-stack-values.yaml
+      - values:
+          fullnameOverride: monitoring
+          grafana:
+            persistence:
+              storageClassName: ebs-csi
+          prometheus:
+            prometheusSpec:
+              storageSpec:
+                volumeClaimTemplate:
+                  spec:
+                    storageClassName: ebs-csi
+    createNamespace: true
+
+  # Local chart at platform/charts/otel
+  - name: otel
+    namespace: observability
+    chart: ../platform/charts/otel
+    labels:
+      wave: "20"
+    needs:
+      - observability/opentelemetry-operator
+      - monitoring/kube-prometheus-stack
+    createNamespace: true
+
+# =============================================================================
+# WAVE 30 — Logging, Tracing, Grafana dashboards
+# =============================================================================
+
+  - name: loki
+    namespace: observability
+    chart: grafana-community/loki
+    version: "12.0.0"
+    labels:
+      wave: "30"
+    needs:
+      - monitoring/kube-prometheus-stack
+    values:
+      - ../platform/upstream-values/loki-values.yaml
+    createNamespace: true
+
+  - name: tempo
+    namespace: observability
+    chart: grafana/tempo-distributed
+    version: "1.60.0"
+    labels:
+      wave: "30"
+    needs:
+      - monitoring/kube-prometheus-stack
+      - kube-system/aws-ebs-csi-driver
+    values:
+      - ../platform/upstream-values/tempo-values.yaml
+      - values:
+          ingester:
+            persistence:
+              storageClass: ebs-csi
+    createNamespace: true
+
+  # Grafana dashboard ConfigMaps — no upstream chart.
+  # Uses a noop placeholder + presync hook that runs kubectl apply.
+  - name: grafana-dashboards
+    namespace: monitoring
+    chart: ./charts/noop
+    version: "0.1.0"
+    labels:
+      wave: "30"
+    needs:
+      - monitoring/kube-prometheus-stack
+    hooks:
+      - events: ["presync"]
+        command: "bash"
+        args:
+          - "./hooks/grafana-dashboards.sh"
+    createNamespace: false   # namespace already exists (created by kube-prometheus-stack)
+
+# =============================================================================
+# WAVE 40 — PostgreSQL (CloudNativePG)
+# =============================================================================
+
+  - name: postgresql
+    namespace: db
+    chart: ../services/postgresql
+    labels:
+      wave: "40"
+    needs:
+      - cnpg-system/cnpg
+      - kube-system/aws-ebs-csi-driver
+    createNamespace: true
+
+# =============================================================================
+# WAVE 50 — Application
+# =============================================================================
+
+  - name: fastapi-app
+    namespace: fastapi
+    chart: ../services/fastapi-app
+    labels:
+      wave: "50"
+    needs:
+      - ingress-nginx/ingress-nginx
+      - keda/keda
+      - observability/otel
+      - db/postgresql
+    createNamespace: true
