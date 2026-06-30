@@ -5,7 +5,6 @@
 #
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 
 RED='\033[0;31m'
@@ -32,7 +31,7 @@ if kubectl get application root-app -n "$ARGOCD_NAMESPACE" >/dev/null 2>&1; then
     kubectl delete application root-app -n "$ARGOCD_NAMESPACE" --timeout=10s || true
 fi
 
-apps=$(kubectl get applications -n "$ARGOCD_NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+apps=$(kubectl get applications -n "$ARGOCD_NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
 for app in $apps; do
     kubectl patch application "$app" -n "$ARGOCD_NAMESPACE" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
     kubectl delete application "$app" -n "$ARGOCD_NAMESPACE" --timeout=10s || true
@@ -47,7 +46,7 @@ for ns in $TARGET_NAMESPACES; do
     
     # Target all controller types that keep bringing pods back to life
     for resource in deployments statefulsets daemonsets replicasets jobs cronjobs pods; do
-        items=$(kubectl get "$resource" -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+        items=$(kubectl get "$resource" -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
         if [[ -n "$items" ]]; then
             echo "  -> Found $resource elements. Stripping finalizers and forcing deletion..."
             for item in $items; do
@@ -80,7 +79,7 @@ sleep 10
 
 # 3. ONLY strip finalizers if resources are obstinately stuck in 'Terminating'
 for ns in $TARGET_NAMESPACES; do
-    stuck_pvcs=$(kubectl get pvc -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+    stuck_pvcs=$(kubectl get pvc -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     if [[ -n "$stuck_pvcs" ]]; then
         warn "PVCs stuck in [$ns]. Forcing finalizer stripping (May cause AWS orphans!)."
         for pvc in $stuck_pvcs; do
@@ -95,7 +94,7 @@ if kubectl get pv >/dev/null 2>&1; then
     kubectl delete pv --all --timeout=15s >/dev/null 2>&1 || true
     
     # Ultimate fallback for PV metadata
-    stuck_pvs=$(kubectl get pv -o jsonpath='{.items[*].metadata.name}' 2>/dev/null) || ""
+    stuck_pvs=$(kubectl get pv -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     for pv in $stuck_pvs; do
         kubectl patch pv "$pv" -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
     done
