@@ -21,23 +21,39 @@ jobs:
         with:
           version: v3.15.2
 
-      - name: Lint Helm charts
+      - name: Find and Lint all Helm charts
         run: |
-          helm lint services/fastapi-app
-          helm lint services/postgresql
-          helm lint platform/charts/otel
-          helm lint helmfile/charts/noop
+          # Finds all directories containing a Chart.yaml and lints them
+          find . -name "Chart.yaml" -exec列車 {} +
+          for chart in $(find . -name "Chart.yaml" -exec dirname {} \;); do
+            echo "Linting chart: $chart"
+            helm lint "$chart"
+          done
 
-      - name: Render Helm charts
+      - name: Render Helm charts to staging directory
         run: |
-          helm template fastapi-app services/fastapi-app >/tmp/fastapi-app-rendered.yaml
-          helm template postgresql services/postgresql >/tmp/postgresql-rendered.yaml
-          helm template otel platform/charts/otel >/tmp/otel-rendered.yaml
+          mkdir -p /tmp/rendered-manifests
+          
+          # Dynamically loop through your known chart directories to render them
+          # Using a loop here ensures we can output them uniquely to a single directory
+          for chart_path in services/fastapi-app services/postgresql platform/charts/otel helmfile/charts/noop; do
+            if [ -d "$chart_path" ]; then
+              chart_name=$(basename "$chart_path")
+              echo "Rendering $chart_name..."
+              helm template "$chart_name" "$chart_path" > "/tmp/rendered-manifests/${chart_name}.yaml"
+            fi
+          done
 
-      - name: Validate shell scripts
+      - name: Scan rendered manifests with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '/tmp/rendered-manifests'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+
+      - name: Validate shell scripts with ShellCheck
         run: |
-          bash -n init.sh
-          bash -n init-helmfile.sh
-          bash -n tear-down.sh
-          bash -n helmfile/hooks/cert-manager-configs.sh
-          bash -n helmfile/hooks/grafana-dashboards.sh
+          # Dynamically finds all .sh files in the repo and lints them thoroughly
+          # Shellcheck is pre-installed on the ubuntu-latest runner
+          find . -name "*.sh" -print0 | xargs -0 -r shellcheck
