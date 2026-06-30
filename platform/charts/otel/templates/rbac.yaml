@@ -42,11 +42,11 @@ rules:
       - endpoints
     verbs: ["get", "watch", "list"]
   # Node-level metrics (hostmetrics receiver, optional)
+  # Avoid nodes/proxy because it grants access to the kubelet proxy and can enable privilege escalation.
   - apiGroups: [""]
     resources:
       - nodes/metrics
       - nodes/stats
-      - nodes/proxy
     verbs: ["get"]
 
 ---

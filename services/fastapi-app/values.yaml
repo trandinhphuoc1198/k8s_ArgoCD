@@ -97,6 +97,24 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
+# Security context for pod and containers
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 3000
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+      - ALL
+
 probes:
   enabled: true
   initialDelaySeconds: 10
