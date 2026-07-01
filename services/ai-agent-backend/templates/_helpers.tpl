@@ -19,6 +19,10 @@
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "ai-agent-backend.configChecksum" -}}
+checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+{{- end -}}
+
 {{- define "ai-agent-backend.labels" -}}
 helm.sh/chart: {{ include "ai-agent-backend.chart" . }}
 app.kubernetes.io/name: {{ include "ai-agent-backend.name" . }}

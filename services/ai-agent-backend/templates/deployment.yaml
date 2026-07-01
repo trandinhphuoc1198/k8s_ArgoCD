@@ -28,6 +28,7 @@ spec:
         instrumentation.opentelemetry.io/inject-python: {{ .Values.opentelemetry.instrumentationNamespace | default .Release.Namespace | printf "%s/ai-agent-backend-instrumentation" | quote }}
         sidecar.opentelemetry.io/inject: "false"
         {{- end }}
+        {{- include "ai-agent-backend.configChecksum" . | nindent 6 }}
     spec:
       serviceAccountName: {{ include "ai-agent-backend.serviceAccountName" . }}
       securityContext:
@@ -45,7 +46,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "ai-agent-backend.fullname" . }}-config
-                    {{- if .Values.probes.enabled }}
+          {{- if .Values.probes.enabled }}
           livenessProbe:
             tcpSocket:
               port: http
