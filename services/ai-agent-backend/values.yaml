@@ -1,0 +1,170 @@
+replicaCount: 1
+
+image:
+  repository: gintaku98/k8s_ai_agent_backend
+  tag: d107cd9676c070ef1368538489c18516f53dd1e7
+  pullPolicy: IfNotPresent
+
+nameOverride: "ai-agent-backend"
+fullnameOverride: "ai-agent-backend"
+
+containerPort: 8000
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    # nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # nginx.ingress.kubernetes.io/x-forwarded-prefix: "/ai-agent-backend"
+    cert-manager.io/cluster-issuer: internal-ca-issuer
+  hosts:
+    - host: "ai-agent-backend.phuoctd6.shop"
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - ai-agent-backend.phuoctd6.shop
+      secretName: ai-agent-backend-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 126Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+keda:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+
+  # How often KEDA queries Prometheus (seconds)
+  pollingInterval: 30
+  # How long to wait after last trigger fires before scaling in (seconds)
+  cooldownPeriod: 60
+
+  prometheus:
+    # In-cluster Prometheus exposed by kube-prometheus-stack
+    serverAddress: http://monitoring-prometheus.monitoring.svc:9090/
+
+  # ── Scale-out / scale-in behaviour ─────────────────────────────────────────
+  scaleUp:
+    stabilizationWindowSeconds: 30   # react within 1 m of sustained load
+    maxPodsPerStep: 2                 # add at most 2 pods per step
+    periodSeconds: 60
+  scaleDown:
+    stabilizationWindowSeconds: 30  # wait 5 m of low load before removing pods
+    maxPodsPerStep: 2                 # remove 1 pod at a time
+    periodSeconds: 60
+
+  # ── Trigger thresholds ──────────────────────────────────────────────────────
+  triggers:
+    # Scale out when per-pod RPS exceeds this value
+    requestRate:
+      threshold: "10"
+
+    # Scale out when P95 latency (seconds) exceeds this value
+    p95Latency:
+      threshold: "0.5"
+
+database:
+  createSecret: true
+  existingSecret: ""
+  secretName: ""
+  writehost: "pg-pooler-rw.db.svc.cluster.local"
+  readhost: "pg-pooler-ro.db.svc.cluster.local"
+  port: "5432"
+  user: "appuser"
+  password: "changeme"
+  name: "TestDb"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Non-secret application config, rendered into a ConfigMap and mounted via
+# envFrom in the Deployment. Mirrors the app's .env file, minus the API keys
+# (OPENROUTER_API_KEY, GOOGLE_API_KEY) which live in AWS Secrets Manager and
+# are wired in separately as regular secret env vars.
+# ─────────────────────────────────────────────────────────────────────────────
+config:
+  model: "gemini-3.5-flash"
+  cmdMode: "permission"
+  workspaceDir: "./workspace"
+  logsDir: "./logs"
+  ragScoreThreshold: "1.0"
+  toolsEnabled: "false"
+  enabledTools: '["read_file", "write_file"]'
+  historyRecentTurns: "1"
+  historyMaxTurns: "5"
+
+podAnnotations: {}
+podLabels: {}
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Security context for pod and containers
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 3000
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+      - ALL
+
+probes:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  additionalLabels:
+    release: kube-prometheus-stack
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OpenTelemetry auto-instrumentation
+#
+# When enabled: true, the pod gets a single annotation that tells the OTel
+# Operator webhook to inject the Python SDK init-container at admission time.
+# The operator then sets ALL OTEL_* env vars automatically from the
+# Instrumentation CR defined in charts/otel — nothing else is needed here.
+#
+# Prerequisites:
+#   - OTel Operator installed  (k8s/helm/otel-operator-values.yaml)
+#   - OTel chart deployed      (charts/otel/, namespace: observability)
+# ─────────────────────────────────────────────────────────────────────────────
+opentelemetry:
+  # Master switch — set false to disable injection with no other changes needed.
+  enabled: true
+
+  # Namespace where the Instrumentation CR lives.
+  # Becomes the prefix in the annotation: "<instrumentationNamespace>/fastapi-instrumentation"
+  # Must match global.namespace in charts/otel/values.yaml.
+  instrumentationNamespace: "observability"
