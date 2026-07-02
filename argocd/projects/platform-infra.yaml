@@ -12,6 +12,7 @@ spec:
 
   sourceRepos:
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
+    - "https://kubernetes.github.io/cloud-provider-aws"
     - "https://helm.cilium.io/"
     - "https://charts.jetstack.io"
     - "https://kubernetes.github.io/autoscaler"
