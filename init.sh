@@ -94,7 +94,7 @@ fi
 helm upgrade --install argocd argo/argo-cd \
   --namespace "$ARGOCD_NAMESPACE" \
   --create-namespace \
-  --values "$ARGOCD_DIR/bootstrap/argocd-values.yaml" \
+  --values "$PLATFORM_DIR/upstream-values/argocd-values.yaml" \
   "${version_args[@]}" \
   --wait --timeout 5m
 
