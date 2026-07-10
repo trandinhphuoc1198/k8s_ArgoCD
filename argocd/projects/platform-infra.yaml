@@ -11,6 +11,7 @@ spec:
     Owns CRDs, StorageClasses, ClusterRoles, etc. by design.
 
   sourceRepos:
+    - "https://argoproj.github.io/argo-helm"
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
     - "https://kubernetes.github.io/cloud-provider-aws"
     - "https://helm.cilium.io/"
