@@ -35,14 +35,14 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-  ignoreDifferences:
-    - group: monitoring.coreos.com
-      kind: ServiceMonitor
-      name: cilium-agent
-      jsonPointers:
-        - /spec/endpoints/0/relabelings
-    - group: monitoring.coreos.com
-      kind: ServiceMonitor
-      name: hubble
-      jsonPointers:
-        - /spec/endpoints/0/relabelings
+  # ignoreDifferences:
+  #   - group: monitoring.coreos.com
+  #     kind: ServiceMonitor
+  #     name: cilium-agent
+  #     jsonPointers:
+  #       - /spec/endpoints/0/relabelings
+  #   - group: monitoring.coreos.com
+  #     kind: ServiceMonitor
+  #     name: hubble
+  #     jsonPointers:
+  #       - /spec/endpoints/0/relabelings
