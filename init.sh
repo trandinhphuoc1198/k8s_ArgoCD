@@ -35,13 +35,6 @@ wait_for_rollout() {
     || echo "  ⚠️  Warning: ${resource} not ready — check it before continuing."
 }
 
-wait_for_crd() {
-  local crd="$1" timeout="${2:-180s}"
-  echo "  ⏳ Waiting for CRD ${crd}..."
-  kubectl wait --for=condition=Established "crd/${crd}" --timeout="${timeout}" \
-    || echo "  ⚠️  Warning: CRD ${crd} not ready — check it before continuing."
-}
-
 echo -e "${BLUE}==================================================${NC}"
 echo -e "${BLUE}    Starting GitOps Cluster Bootstrap Engine     ${NC}"
 echo -e "${BLUE}==================================================${NC}"
@@ -56,17 +49,8 @@ helm repo add autoscaler https://kubernetes.github.io/autoscaler >/dev/null 2>&1
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
 helm repo update >/dev/null
 
-# 1.1 Prometheus Operator CRDs
-info "Installing Prometheus Operator CRDs…"
-helm upgrade --install prometheus-operator-crds prometheus-community/prometheus-operator-crds \
-  --namespace monitoring \
-  --create-namespace \
-  --wait
 
-wait_for_crd "servicemonitors.monitoring.coreos.com"
-wait_for_crd "prometheusrules.monitoring.coreos.com"
-
-# 1.2 Cilium CNI
+# 1.1 Cilium CNI
 info "Installing Cilium ${CILIUM_VERSION}…"
 cilium_set_args=()
 if [[ -n "$CONTROL_PLANE_IP" ]]; then
@@ -81,8 +65,6 @@ helm upgrade --install cilium cilium/cilium \
   --version "$CILIUM_VERSION" \
   --namespace kube-system \
   --values "$PLATFORM_DIR/upstream-values/cilium-values.yaml" \
-  --set "prometheus.serviceMonitor.trustCRDsExist=true" \
-  --set "hubble.metrics.serviceMonitor.trustCRDsExist=true" \
   "${cilium_set_args[@]}" \
   --wait --timeout 5m
 
@@ -112,7 +94,7 @@ fi
 helm upgrade --install argocd argo/argo-cd \
   --namespace "$ARGOCD_NAMESPACE" \
   --create-namespace \
-  --values "$PLATFORM_DIR/upstream-values/argocd-values.yaml" \
+  --values "$ARGOCD_DIR/bootstrap/argocd-values.yaml" \
   "${version_args[@]}" \
   --wait --timeout 5m
 
