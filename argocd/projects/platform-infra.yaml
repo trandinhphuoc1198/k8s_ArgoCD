@@ -5,14 +5,15 @@ metadata:
   namespace: argocd
 spec:
   description: >
-    Cluster infrastructure — CNI, autoscaler, storage, ingress,
-    observability stack, KEDA, the CNPG operator, and the Argo CD
-    bootstrap (root-app) itself. High blast radius, low change frequency.
-    Owns CRDs, StorageClasses, ClusterRoles, etc. by design.
+    Cluster infrastructure for SPOKE clusters — CNI, autoscaler, storage,
+    ingress, observability stack, KEDA, the CNPG operator. High blast
+    radius, low change frequency. Owns CRDs, StorageClasses, ClusterRoles,
+    etc. by design. Destinations are wildcarded on server because these
+    Applications are generated per-spoke by ApplicationSets (cluster
+    generator) — the real boundary is the namespace list below, not which
+    cluster.
 
   sourceRepos:
-    - "https://argoproj.github.io/argo-helm"
-    - "https://charts.external-secrets.io"
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
     - "https://kubernetes.github.io/cloud-provider-aws"
     - "https://helm.cilium.io/"
@@ -28,30 +29,24 @@ spec:
     - "https://cloudnative-pg.github.io/charts"
     - "https://kubernetes-sigs.github.io/metrics-server/"
 
-
-  # Only the system namespaces these specific releases land in, plus
-  # 'argocd' itself (root-app creates the child Application resources
-  # there). Notably absent: 'fastapi' and 'db' — infra apps have no
-  # business touching the app's namespaces.
+  # Wildcarded server — these Applications land on whichever spoke the
+  # ApplicationSet cluster generator produced them for. Namespace scoping
+  # below is what actually bounds blast radius now.
   destinations:
-    - server: https://kubernetes.default.svc
+    - server: "*"
       namespace: kube-system
-    - server: https://kubernetes.default.svc
+    - server: "*"
       namespace: ingress-nginx
-    - server: https://kubernetes.default.svc
+    - server: "*"
       namespace: observability
-    - server: https://kubernetes.default.svc
+    - server: "*"
       namespace: keda
-    - server: https://kubernetes.default.svc
+    - server: "*"
       namespace: cnpg-system
-    - server: https://kubernetes.default.svc
+    - server: "*"
       namespace: monitoring
-    - server: https://kubernetes.default.svc
-      namespace: argocd
-    - server: https://kubernetes.default.svc
+    - server: "*"
       namespace: cert-manager
-    - server: https://kubernetes.default.svc
-      namespace: external-secrets
 
   # These charts legitimately install CRDs, StorageClasses, ClusterRoles,
   # ClusterRoleBindings, the CSIDriver object, etc. — kept wide open here,

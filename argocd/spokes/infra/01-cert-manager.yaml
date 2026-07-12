@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            role: workload
+  template:
+    metadata:
+      name: 'cert-manager-{{name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "01"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform-infra
+      source:
+        repoURL: https://charts.jetstack.io
+        chart: cert-manager
+        targetRevision: "1.15.0"
+        helm:
+          releaseName: cert-manager
+          values: |
+            crds:
+              enabled: true
+              keep: true
+      destination:
+        server: '{{server}}'
+        namespace: cert-manager
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

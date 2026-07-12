@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-hub
+  namespace: argocd
+spec:
+  description: >
+    The hub cluster's own management plane: ArgoCD's Helm release, External
+    Secrets Operator, the ClusterSecretStore, and the per-spoke
+    ExternalSecrets that register spoke clusters. Deliberately pinned to
+    server: https://kubernetes.default.svc only — nothing in this project
+    should ever be templated out to a spoke by an ApplicationSet. Keeping
+    this separate from platform-infra prevents a spoke-selector mistake from
+    ever matching ArgoCD's own management resources.
+
+  sourceRepos:
+    - "https://argoproj.github.io/argo-helm"
+    - "https://charts.external-secrets.io"
+    - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: external-secrets
+
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
