@@ -12,6 +12,7 @@ spec:
 
   sourceRepos:
     - "https://argoproj.github.io/argo-helm"
+    - "https://charts.external-secrets.io"
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
     - "https://kubernetes.github.io/cloud-provider-aws"
     - "https://helm.cilium.io/"
@@ -49,6 +50,8 @@ spec:
       namespace: argocd
     - server: https://kubernetes.default.svc
       namespace: cert-manager
+    - server: https://kubernetes.default.svc
+      namespace: external-secrets
 
   # These charts legitimately install CRDs, StorageClasses, ClusterRoles,
   # ClusterRoleBindings, the CSIDriver object, etc. — kept wide open here,
