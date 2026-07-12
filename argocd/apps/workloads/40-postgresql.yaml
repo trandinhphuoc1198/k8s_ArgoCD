@@ -8,29 +8,36 @@
 # it to a sealed-secret / external-secret before going further than a dev
 # environment.
 apiVersion: argoproj.io/v1alpha1
-kind: Application
+kind: ApplicationSet
 metadata:
   name: postgresql
   namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "40"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
-  project: platform-apps
-  source:
-    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
-    targetRevision: main
-    path: services/postgresql
-    helm:
-      releaseName: postgresql
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: db
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            role: spoke
+  template:
+    metadata:
+      name: 'postgresql-{{name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "40"
+    spec:
+      project: platform-apps
+      source:
+        repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+        targetRevision: main
+        path: services/postgresql
+        helm:
+          releaseName: postgresql
+      destination:
+        server: '{{server}}'
+        namespace: db
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

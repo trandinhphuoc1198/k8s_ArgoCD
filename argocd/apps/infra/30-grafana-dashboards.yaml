@@ -2,29 +2,36 @@
 # kube-prometheus-stack picks them up via the grafana_dashboard=1 label.
 # Needs the monitoring namespace + Grafana sidecar from wave 20.
 apiVersion: argoproj.io/v1alpha1
-kind: Application
+kind: ApplicationSet
 metadata:
   name: grafana-dashboards
   namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "30"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
-  project: platform-infra
-  source:
-    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
-    targetRevision: main
-    path: platform/grafana-dashboards
-    directory:
-      recurse: false
-      exclude: "*.md"
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: monitoring
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            role: spoke
+  template:
+    metadata:
+      name: 'grafana-dashboards-{{name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "30"
+    spec:
+      project: platform-infra
+      source:
+        repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+        targetRevision: main
+        path: platform/grafana-dashboards
+        directory:
+          recurse: false
+          exclude: "*.md"
+      destination:
+        server: '{{server}}'
+        namespace: monitoring
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

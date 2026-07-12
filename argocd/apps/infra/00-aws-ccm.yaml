@@ -1,34 +1,41 @@
 apiVersion: argoproj.io/v1alpha1
-kind: Application
+kind: ApplicationSet
 metadata:
   name: aws-cloud-controller-manager
   namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
-  project: platform-infra
-  sources:
-    # Source 1: the Helm chart itself
-    - repoURL: https://kubernetes.github.io/cloud-provider-aws
-      chart: aws-cloud-controller-manager
-      targetRevision: "0.0.11"     # latest chart release
-      helm:
-        valueFiles:
-          - $values/platform/upstream-values/aws-ccm-values.yaml 
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            role: spoke
+  template:
+    metadata:
+      name: 'aws-cloud-controller-manager-{{name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "00"
+    spec:
+      project: platform-infra
+      sources:
+        # Source 1: the Helm chart itself
+        - repoURL: https://kubernetes.github.io/cloud-provider-aws
+          chart: aws-cloud-controller-manager
+          targetRevision: "0.0.11"     # latest chart release
+          helm:
+            valueFiles:
+              - $values/platform/upstream-values/aws-ccm-values.yaml
 
-    - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
-      targetRevision: main
-      ref: values
+        - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+          targetRevision: main
+          ref: values
 
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: kube-system
+      destination:
+        server: '{{server}}'
+        namespace: kube-system
 
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
