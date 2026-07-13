@@ -8,8 +8,9 @@ Operator (ESO) pulling from AWS Secrets Manager.
 ```
 argocd/
 ├── root-apps/
-│   ├── root-hub.yaml         # App-of-apps → argocd/hub    (hub only)
-│   └── root-spokes.yaml      # App-of-apps → argocd/spokes (ApplicationSets, fan out to spokes)
+│   ├── root-hub.yaml        # App-of-apps → argocd/hub      (hub only)
+│   ├── root-spokes.yaml     # App-of-apps → argocd/spokes   (ApplicationSets, fan out to spokes)
+│   └── root-clusters.yaml   # App-of-apps → argocd/clusters (spoke registration ExternalSecrets)
 │
 ├── projects/
 │   ├── platform-hub.yaml    # AppProject — ArgoCD's own mgmt + ESO. server pinned to the hub only.
@@ -36,62 +37,48 @@ argocd/
 │       ├── 40-postgresql.yaml
 │       └── 50-fastapi-app.yaml
 │
+├── clusters/                 # One ExternalSecret per registered spoke.
+│   ├── spoke-dev.yaml         #   Adding a file here = onboarding a spoke.
+│   └── spoke-prod.yaml
+│
 └── bootstrap/
-    ├── README.md                       # spoke registration design + gaps
-    ├── capture-versions.sh             # (carry over from your existing repo, unchanged)
-    ├── external-secret-template.yaml   # per-spoke ExternalSecret, applied by script (not git)
-    ├── register-spoke.sh               # onboard a spoke — no git commit involved
-    └── deregister-spoke.sh             # offboard a spoke
+    ├── README.md              # gaps: capture-versions.sh, spoke registration script
+    └── capture-versions.sh    # (carry over from your existing repo, unchanged)
 ```
 
 ## How a spoke gets infra/workloads
 
-Registration is a **script**, not GitOps — `bootstrap/register-spoke.sh`
-applies the spoke's `ExternalSecret` directly to the hub's live API, so
-onboarding never requires a git commit.
-
-1. Run `bootstrap/register-spoke.sh <cluster-name> <spoke-kube-context>
-   [role] [env]`. It creates a ServiceAccount on the spoke, writes
-   `{name, server, token, caData, role, env}` to AWS Secrets Manager at
-   `argocd-clusters/<cluster-name>`, then applies the rendered
-   `ExternalSecret` to the hub.
-2. On its next refresh (`refreshInterval: 5m`), ESO's `ClusterSecretStore`
-   resolves that AWS secret and materializes an `argocd`-namespace `Secret`
-   for it — labeled `argocd.argoproj.io/secret-type: cluster`, plus
-   `role`/`env` read **dynamically from the secret payload itself** (Go
-   template `{{ .role }}` / `{{ .env }}`), not hardcoded anywhere in the
-   template. The spoke's own provisioning data decides its labels.
-3. ArgoCD recognizes that `Secret` as a registered cluster. Every
+1. You (or an onboarding script) create a ServiceAccount + token on the new
+   spoke cluster and write `{name, server, token, caData}` into AWS Secrets
+   Manager at `argocd-clusters/<cluster-name>` — see `bootstrap/README.md`.
+2. You add `argocd/clusters/<cluster-name>.yaml` (copy `spoke-dev.yaml`,
+   rename) and push.
+3. `root-clusters` syncs it → ESO's `ClusterSecretStore` resolves the AWS
+   secret → materializes an `argocd`-namespace Secret labeled
+   `argocd.argoproj.io/secret-type: cluster` + `role: spoke`.
+4. ArgoCD recognizes that Secret as a registered cluster. Every
    ApplicationSet under `spokes/infra/` and `spokes/workloads/` has a
-   `clusters` generator matching `role: spoke`, so it generates
+   `clusters` generator matching `role: spoke`, so it immediately generates
    `<release>-<cluster-name>` Applications targeting that spoke, honoring
    the same `sync-wave` ordering (`-1` → `50`) as before.
-4. `bootstrap/deregister-spoke.sh <cluster-name>` reverses this: deletes
-   the `ExternalSecret` + generated `Secret` on the hub (cascading removal
-   of every generated Application, Cilium excluded per its
-   `prune: false`), then deletes the Secrets Manager entry. Run it before
-   tearing down the spoke's infrastructure.
+5. Deleting the cluster's file under `argocd/clusters/` removes the cluster
+   Secret and — because the ApplicationSets use the cluster generator —
+   ArgoCD cascades and removes every generated Application for that spoke
+   too. Cilium's ApplicationSet keeps `prune: false` per-spoke for the same
+   reason it always did: don't let automation rip out a live CNI.
 
-**Why not a single `find`-based `ExternalSecret` instead of a script:** ESO's
-`dataFrom.find` merges every matched AWS secret into keys on *one*
-Kubernetes `Secret`, not into N separate `Secret` objects — but ArgoCD
-needs each spoke as its own `Secret`. That ruled it out; `register-spoke.sh`
-applying a per-spoke `ExternalSecret` directly (bypassing git, not bypassing
-"one Secret per cluster") is the actual fix. See `bootstrap/README.md` for
-the full rationale.
+## Why three separate root Applications instead of one
 
-## Why two separate root Applications instead of one
-
-- `root-hub` changes rarely and only affects the hub's own control plane
-  (ArgoCD itself, ESO, the `ClusterSecretStore`).
+- `root-hub` changes rarely and only affects the hub's own control plane.
 - `root-spokes` changes when infra/workload charts or versions change —
-  fleet-wide, but which *clusters* are affected is driven entirely by
-  cluster registration (`bootstrap/register-spoke.sh`), not by anything
-  under `root-spokes`'s own path.
+  fleet-wide, but the *set of clusters* affected doesn't change here.
+- `root-clusters` changes every time a spoke is added/removed — highest
+  frequency, narrowest blast radius (one cluster's registration, not the
+  chart definitions).
 
-Spoke registration itself isn't a third root Application — see "How a spoke
-gets infra/workloads" above for why that's a script against the hub's live
-API rather than a git-synced resource.
+Keeping them separate means `git log` on each path tells you exactly what
+kind of change happened, and a mistake in one can't accidentally prune the
+other two.
 
 ## AppProject boundaries
 
@@ -105,18 +92,17 @@ API rather than a git-synced resource.
   ApplicationSets — the real boundary is the namespace whitelist, same as
   before.
 
-## Known gaps / new
+## Known gaps carried forward / new
 
 - Everything previously listed in the single-cluster README (floating chart
   versions, plaintext `changeme` passwords, Tempo S3 credentials via
   instance-profile IAM) still applies — now multiplied across every spoke.
-- **`register-spoke.sh` mints a 10-year token and grants cluster-admin on
-  the spoke** — reasonable for a dev fleet, worth tightening (shorter TTL +
-  rotation, or a narrower ClusterRole if ArgoCD's actual footprint ends up
-  smaller than "everything") before production.
+- **No automated spoke-registration script yet** — see
+  `bootstrap/README.md`. Until that exists, onboarding a spoke is a manual
+  `kubectl` + `aws secretsmanager` process before the git-side steps above.
 - **Hub → spoke network reachability** must be solved per your topology
-  (VPC peering, public NLB per spoke API server, etc.) — the script doesn't
-  verify this, and nothing in this repo provisions it.
+  (VPC peering, public NLB per spoke API server, etc.) — nothing in this
+  repo provisions that.
 - **`prometheus-operator-crds`** still isn't tracked as its own
   Application/ApplicationSet anywhere — same gap as the single-cluster
   layout, now needed on every spoke before `kube-prometheus-stack` can

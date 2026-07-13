@@ -1,0 +1,38 @@
+# argocd/clusters/spoke-dev.yaml
+#
+# Registers the "spoke-dev" cluster with ArgoCD. ESO watches AWS Secrets
+# Manager key "argocd-clusters/spoke-dev" (populated out-of-band when the
+# spoke is provisioned — see argocd/bootstrap/README for the expected
+# {name, server, token, caData} shape) and materializes it into the
+# argocd-namespace Secret that ArgoCD's cluster list reads.
+#
+# The "role: spoke" label is what every ApplicationSet's cluster generator
+# selector matches on — that's the switch that fans out all of
+# argocd/spokes/ onto this cluster automatically. Nothing else needs to
+# change when a new spoke is added: drop a file like this one in, ESO +
+# the ApplicationSet controller do the rest.
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: spoke-dev
+  namespace: argocd
+spec:
+  refreshInterval: 5m
+  secretStoreRef:
+    name: argocd-clusters-store
+    kind: ClusterSecretStore
+  target:
+    name: spoke-dev
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: cluster
+          role: workload
+      data:
+        name: "{{ .name }}"
+        server: "{{ .server }}"
+        config: |
+          {"bearerToken":"{{ .token }}","tlsClientConfig":{"insecure":false,"caData":"{{ .caData }}"}}
+  dataFrom:
+    - extract:
+        key: argocd-clusters/spoke-dev
