@@ -27,7 +27,7 @@ spec:
       metadata:
         labels:
           argocd.argoproj.io/secret-type: cluster
-          role: workload
+          cluster-role: workload
       data:
         name: "{{ .name }}"
         server: "{{ .server }}"

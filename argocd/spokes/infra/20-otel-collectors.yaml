@@ -10,7 +10,7 @@ spec:
     - clusters:
         selector:
           matchLabels:
-            role: workload
+            cluster-role: workload
   template:
     metadata:
       name: 'otel-collectors-{{name}}'

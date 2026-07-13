@@ -8,7 +8,7 @@ spec:
     - clusters:
         selector:
           matchLabels:
-            role: workload
+            cluster-role: workload
   template:
     metadata:
       name: 'cilium-servicemonitors-{{name}}'

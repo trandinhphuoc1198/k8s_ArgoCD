@@ -11,7 +11,7 @@ spec:
     - clusters:
         selector:
           matchLabels:
-            role: workload
+            cluster-role: workload
   template:
     metadata:
       name: 'aws-ebs-csi-driver-{{name}}'

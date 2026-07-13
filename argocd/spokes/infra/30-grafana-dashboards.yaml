@@ -12,7 +12,7 @@ spec:
     - clusters:
         selector:
           matchLabels:
-            role: workload
+            cluster-role: workload
   template:
     metadata:
       name: 'grafana-dashboards-{{name}}'
