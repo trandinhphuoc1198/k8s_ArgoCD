@@ -1,0 +1,27 @@
+# Applies the Issuer / Certificate / ClusterIssuer manifests
+# (platform/cert-manager/cert-manager-config.yaml) to the hub cluster.
+# Mirrors argocd/spokes/infra/10-cert-manager-configs.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-configs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "02"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-hub
+  source:
+    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+    targetRevision: main
+    path: platform/cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

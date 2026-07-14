@@ -16,6 +16,8 @@ spec:
   sourceRepos:
     - "https://argoproj.github.io/argo-helm"
     - "https://charts.external-secrets.io"
+    - "https://charts.jetstack.io"
+    - "https://kubernetes.github.io/ingress-nginx"
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
 
   destinations:
@@ -23,6 +25,10 @@ spec:
       namespace: argocd
     - server: https://kubernetes.default.svc
       namespace: external-secrets
+    - server: https://kubernetes.default.svc
+      namespace: cert-manager
+    - server: https://kubernetes.default.svc
+      namespace: ingress-nginx
 
   clusterResourceWhitelist:
     - group: "*"
