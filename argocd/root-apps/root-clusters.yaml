@@ -35,7 +35,7 @@ spec:
       - SkipDryRunOnMissingResource=true
       - ServerSideApply=true
     retry:
-      limit: 20
+      limit: 5
       backoff:
         duration: 15s
         factor: 2
