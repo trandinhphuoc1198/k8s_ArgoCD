@@ -1,8 +1,0 @@
-apiVersion: v2
-name: noop
-description: >
-  Empty chart used as a placeholder for hook-only releases (cert-manager-configs,
-  grafana-dashboards). Helmfile requires a chart per release; this satisfies that
-  requirement while the actual work is done by the presync hook script.
-type: application
-version: 0.1.0
