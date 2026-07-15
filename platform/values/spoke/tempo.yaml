@@ -1,4 +1,4 @@
-# k8s/helm/tempo-values.yaml
+# platform/values/spoke/tempo.yaml
 # ─────────────────────────────────────────────────────────────────────────────
 # Grafana Tempo — distributed mode on self-hosted K8S (EC2)
 # Storage backend: AWS S3 with static IAM credentials
@@ -8,7 +8,7 @@
 #   helm repo update
 #   helm upgrade --install tempo grafana/tempo-distributed \
 #     --namespace observability \
-#     --values k8s/helm/tempo-values.yaml \
+#     --values platform/values/spoke/tempo.yaml \
 #     --wait
 #
 # Prerequisites:

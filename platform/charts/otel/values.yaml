@@ -68,7 +68,7 @@ collectorDeployment:
   #
   # The real timing constraint is on the DaemonSet collector:
   #   DaemonSet batch.timeout (2s) << Aggregator decisionWait (10s)
-  #   Spans must arrive at the aggregator before the decision window closes.
+  #   Spans must arrive at the aggregator before its 10s decision window closes.
   #   The aggregator batch runs AFTER tail_sampling so its timeout has no
   #   effect on sampling decisions at all.
   # ---------------------------------------------------------------------------

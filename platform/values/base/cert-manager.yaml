@@ -1,0 +1,14 @@
+# platform/values/base/cert-manager.yaml
+#
+# Shared across every deployment tier. Consumed by BOTH:
+#   - argocd/hub/01-cert-manager.yaml            (hub)
+#   - argocd/spokes/infra/01-cert-manager.yaml   (every spoke)
+#   - helmfile/helmfile.yaml → cert-manager release
+#
+# Each tier layers its own platform/values/<tier>/cert-manager.yaml on top
+# of this file (currently empty on both tiers — no tier-specific overrides
+# exist yet). Add overrides there, not here, if hub and spoke ever need to
+# diverge.
+crds:
+  enabled: true
+  keep: true

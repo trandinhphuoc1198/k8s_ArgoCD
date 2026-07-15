@@ -5,5 +5,3 @@
 5. Secret management
 6. Service mesh
 7. try on EKS
-8. spoke and hub pattern
-9. The Token Refresher

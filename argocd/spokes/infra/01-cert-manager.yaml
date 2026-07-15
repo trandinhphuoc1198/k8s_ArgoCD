@@ -1,3 +1,6 @@
+# base + overlay: platform/values/base/cert-manager.yaml holds the config
+# shared by every tier; platform/values/spoke/cert-manager.yaml is this
+# tier's override (empty today). See argocd/README.md#hub-vs-spoke-values.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -18,16 +21,18 @@ spec:
         - resources-finalizer.argocd.argoproj.io
     spec:
       project: platform-infra
-      source:
-        repoURL: https://charts.jetstack.io
-        chart: cert-manager
-        targetRevision: "1.15.0"
-        helm:
-          releaseName: cert-manager
-          values: |
-            crds:
-              enabled: true
-              keep: true
+      sources:
+        - repoURL: https://charts.jetstack.io
+          chart: cert-manager
+          targetRevision: "1.15.0"
+          helm:
+            releaseName: cert-manager
+            valueFiles:
+              - $values/platform/values/base/cert-manager.yaml
+              - $values/platform/values/spoke/cert-manager.yaml
+        - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+          targetRevision: main
+          ref: values
       destination:
         server: '{{server}}'
         namespace: cert-manager

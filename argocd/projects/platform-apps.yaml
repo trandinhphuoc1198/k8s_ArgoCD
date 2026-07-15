@@ -1,22 +1,27 @@
-# Application layer for SPOKE clusters — fastapi-app and its database
-# (postgresql, via the CNPG operator that platform-infra owns). Low blast
-# radius, changes often. Deliberately cannot create anything cluster-scoped
-# (only Namespace). Destinations wildcarded on server because these
-# Applications are generated per-spoke by ApplicationSets.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: platform-apps
   namespace: argocd
 spec:
-  description: "SPOKE app layer: fastapi-app + postgres (CNPG). Namespace-only cluster scope."
+  description: >
+    The application layer for SPOKE clusters — fastapi-app and its database
+    (postgresql, via the CNPG operator that platform-infra owns). Low blast
+    radius, changes often. Deliberately cannot create anything
+    cluster-scoped. Destinations are wildcarded on server for the same
+    reason as platform-infra: these Applications are generated per-spoke.
+
+  # Both charts here are local to this repo — no external Helm chart repos
+  # needed, unlike platform-infra.
   sourceRepos:
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
+
   destinations:
     - server: "*"
       namespace: fastapi
     - server: "*"
       namespace: db
+
   namespaceResourceWhitelist:
     - group: "*"
       kind: "*"

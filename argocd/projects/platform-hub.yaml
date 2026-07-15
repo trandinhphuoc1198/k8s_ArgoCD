@@ -1,23 +1,25 @@
-# Hub cluster's own management plane: ArgoCD's Helm release, External
-# Secrets Operator, the ClusterSecretStore, and the per-spoke ExternalSecrets
-# that register spoke clusters. Deliberately pinned to
-# server: https://kubernetes.default.svc only — nothing here should ever be
-# templated out to a spoke by an ApplicationSet. Kept separate from
-# platform-infra so a spoke-selector mistake can't match ArgoCD's own
-# management resources.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: platform-hub
   namespace: argocd
 spec:
-  description: "Hub cluster management plane: ArgoCD, ESO, cert-manager, ingress. Pinned to in-cluster only."
+  description: >
+    The hub cluster's own management plane: ArgoCD's Helm release, External
+    Secrets Operator, the ClusterSecretStore, and the per-spoke
+    ExternalSecrets that register spoke clusters. Deliberately pinned to
+    server: https://kubernetes.default.svc only — nothing in this project
+    should ever be templated out to a spoke by an ApplicationSet. Keeping
+    this separate from platform-infra prevents a spoke-selector mistake from
+    ever matching ArgoCD's own management resources.
+
   sourceRepos:
     - "https://argoproj.github.io/argo-helm"
     - "https://charts.external-secrets.io"
     - "https://charts.jetstack.io"
     - "https://kubernetes.github.io/ingress-nginx"
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
+
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argocd
@@ -27,9 +29,11 @@ spec:
       namespace: cert-manager
     - server: https://kubernetes.default.svc
       namespace: ingress-nginx
+
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
+
   namespaceResourceWhitelist:
     - group: "*"
       kind: "*"

@@ -60,11 +60,11 @@ if [[ -n "$POD_CIDR" ]]; then
   cilium_set_args+=(--set "ipam.operator.clusterPoolIPv4PodCIDRList=${POD_CIDR}")
 fi
 
-# UPDATED: Pointed to the new platform/upstream-values location
+# Spoke-tier values — same file every spoke ApplicationSet and helmfile use.
 helm upgrade --install cilium cilium/cilium \
   --version "$CILIUM_VERSION" \
   --namespace kube-system \
-  --values "$PLATFORM_DIR/upstream-values/cilium-values.yaml" \
+  --values "$PLATFORM_DIR/values/spoke/cilium.yaml" \
   "${cilium_set_args[@]}" \
   --wait --timeout 5m
 
@@ -73,11 +73,10 @@ wait_for_rollout "deployment/cilium-operator" "kube-system" "120s"
 
 # 1.3 Cluster Autoscaler
 info "Installing Cluster Autoscaler ${AUTO_SCALER_VERSION}…"
-# UPDATED: Pointed to the new platform/upstream-values location
 helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
   --namespace kube-system \
   --version "$AUTO_SCALER_VERSION" \
-  --values "$PLATFORM_DIR/upstream-values/auto-scaler-values.yaml" \
+  --values "$PLATFORM_DIR/values/spoke/auto-scaler.yaml" \
   --wait --timeout 3m
 
 wait_for_rollout "deployment/cluster-autoscaler" "kube-system" "120s"
@@ -91,10 +90,11 @@ if [[ -n "$ARGOCD_CHART_VERSION" ]]; then
   version_args=(--version "$ARGOCD_CHART_VERSION")
 fi
 
+# Hub-tier values — only ever consumed here and by argocd/hub/00-argocd.yaml.
 helm upgrade --install argocd argo/argo-cd \
   --namespace "$ARGOCD_NAMESPACE" \
   --create-namespace \
-  --values "$PLATFORM_DIR/upstream-values/argocd-values.yaml" \
+  --values "$PLATFORM_DIR/values/hub/argocd.yaml" \
   "${version_args[@]}" \
   --wait --timeout 5m
 
@@ -111,14 +111,14 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 4: Apply Root Application (App-of-Apps Takeover)
+# Step 4: Apply Root Applications (App-of-Apps Takeover)
 # ─────────────────────────────────────────────────────────────────────────────
-info "Step 4/4: Deploying Root Application..."
-if [ -f "$ARGOCD_DIR/root-app.yaml" ]; then
-    kubectl apply -f "$ARGOCD_DIR/root-app.yaml"
-    echo -e "${GREEN}✓ Root App successfully applied!${NC}"
+info "Step 4/4: Deploying Root Applications..."
+if [ -f "$ARGOCD_DIR/root-apps/root-hub.yaml" ]; then
+    kubectl apply -f "$ARGOCD_DIR/root-apps/root-hub.yaml"
+    echo -e "${GREEN}✓ root-hub applied!${NC}"
 else
-    echo "❌ Error: '$ARGOCD_DIR/root-app.yaml' not found. Cannot trigger cluster sync."
+    echo "❌ Error: '$ARGOCD_DIR/root-apps/root-hub.yaml' not found. Cannot trigger cluster sync."
     exit 1
 fi
 
@@ -127,7 +127,8 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 echo -e "\n${GREEN}==================================================${NC}"
 echo -e "${GREEN}             Bootstrap Complete!                  ${NC}"
-echo -e "${GREEN}  ArgoCD is now managing the entire cluster.     ${NC}"
+echo -e "${GREEN}  ArgoCD is now managing the hub. Register spokes ${NC}"
+echo -e "${GREEN}  via argocd/clusters/ + root-spokes.yaml next.   ${NC}"
 echo -e "${GREEN}==================================================${NC}"
 
 info "Initial Argo CD admin password:"

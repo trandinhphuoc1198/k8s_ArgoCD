@@ -28,7 +28,7 @@ spec:
           helm:
             releaseName: opentelemetry-operator
             valueFiles:
-              - $values/platform/upstream-values/otel-operator-values.yaml
+              - $values/platform/values/spoke/otel-operator.yaml
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main
           ref: values

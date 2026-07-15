@@ -32,11 +32,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - SkipDryRunOnMissingResource=true
-      - ServerSideApply=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 15s
-        factor: 2
-        maxDuration: 5m
+      - CreateNamespace=true

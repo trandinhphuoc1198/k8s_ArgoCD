@@ -28,7 +28,7 @@ spec:
           helm:
             releaseName: cnpg
             valueFiles:
-              - $values/platform/upstream-values/cnpg-values.yaml
+              - $values/platform/values/spoke/cnpg.yaml
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main
           ref: values

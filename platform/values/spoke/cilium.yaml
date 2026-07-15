@@ -1,5 +1,5 @@
 # =============================================================================
-# cilium-values.yaml
+# platform/values/spoke/cilium.yaml
 #
 # For a FRESH kubeadm cluster on self-managed EC2 (Amazon Linux 2).
 # kube-proxy was never installed (skipPhases: addon/kube-proxy in kubeadm).

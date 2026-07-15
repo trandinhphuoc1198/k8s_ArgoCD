@@ -1,3 +1,6 @@
+# base + overlay: platform/values/base/ingress-nginx.yaml holds the config
+# shared by every tier; platform/values/spoke/ingress-nginx.yaml is this
+# tier's override (empty today). See argocd/README.md#hub-vs-spoke-values.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -25,7 +28,8 @@ spec:
           helm:
             releaseName: ingress-nginx
             valueFiles:
-              - $values/platform/upstream-values/ingress-nginx-values.yaml
+              - $values/platform/values/base/ingress-nginx.yaml
+              - $values/platform/values/spoke/ingress-nginx.yaml
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main
           ref: values

@@ -2,7 +2,7 @@
 # --set ingester.persistence.storageClass="$STORAGE_CLASS" (the values file
 # itself ships a 'standard' placeholder).
 #
-# NOTE: tempo-values.yaml's extraEnvFrom blocks referencing a
+# NOTE: tempo.yaml's extraEnvFrom blocks referencing a
 # 'tempo-s3-credentials' Secret are commented out, and no chart in this repo
 # creates that secret. That implies Tempo is currently picking up S3 access
 # from the EC2 instance profile's IAM role (default AWS SDK credential
@@ -35,7 +35,7 @@ spec:
           helm:
             releaseName: tempo
             valueFiles:
-              - $values/platform/upstream-values/tempo-values.yaml
+              - $values/platform/values/spoke/tempo.yaml
             valuesObject:
               ingester:
                 persistence:

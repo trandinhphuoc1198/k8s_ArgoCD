@@ -1,7 +1,12 @@
 # cert-manager for the hub cluster. Needed so the ArgoCD server Ingress
-# (argocd/hub/00-argocd.yaml + platform/upstream-values/argocd-values.yaml,
-# annotation cert-manager.io/cluster-issuer: internal-ca-issuer) can get a
-# TLS cert once ingress-nginx (04-ingress-nginx.yaml) is also up.
+# (argocd/hub/00-argocd.yaml + platform/values/hub/argocd.yaml, annotation
+# cert-manager.io/cluster-issuer: internal-ca-issuer) can get a TLS cert
+# once ingress-nginx (02-ingress-nginx.yaml) is also up.
+#
+# base + overlay: platform/values/base/cert-manager.yaml holds the config
+# shared by every tier; platform/values/hub/cert-manager.yaml is this tier's
+# override (empty today). Never reference another tier's directory directly
+# — see argocd/README.md#hub-vs-spoke-values.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -13,16 +18,18 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform-hub
-  source:
-    repoURL: https://charts.jetstack.io
-    chart: cert-manager
-    targetRevision: "1.15.0"
-    helm:
-      releaseName: cert-manager
-      values: |
-        crds:
-          enabled: true
-          keep: true
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: "1.15.0"
+      helm:
+        releaseName: cert-manager
+        valueFiles:
+          - $values/platform/values/base/cert-manager.yaml
+          - $values/platform/values/hub/cert-manager.yaml
+    - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+      targetRevision: main
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager

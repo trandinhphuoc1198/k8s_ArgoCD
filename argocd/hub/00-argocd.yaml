@@ -16,7 +16,7 @@ spec:
       helm:
         releaseName: argocd
         valueFiles:
-          - $values/platform/upstream-values/argocd-values.yaml
+          - $values/platform/values/hub/argocd.yaml
     - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
       targetRevision: main
       ref: values

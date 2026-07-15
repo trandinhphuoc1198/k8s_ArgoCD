@@ -1,4 +1,4 @@
-# k8s/helm/otel-operator-values.yaml
+# platform/values/spoke/otel-operator.yaml
 # ─────────────────────────────────────────────────────────────────────────────
 # Values for: open-telemetry/opentelemetry-operator  (chart >= 0.64.2)
 #
@@ -9,7 +9,7 @@
 #     --namespace observability \
 #     --create-namespace \
 #     --version 0.64.2 \
-#     --values k8s/helm/otel-operator-values.yaml \
+#     --values platform/values/spoke/otel-operator.yaml \
 #     --wait
 # ─────────────────────────────────────────────────────────────────────────────
 

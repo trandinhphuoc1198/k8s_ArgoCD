@@ -1,16 +1,19 @@
-# =============================================================================
+# platform/values/hub/argocd.yaml
+# Hub-only. Consumed exclusively by argocd/hub/00-argocd.yaml and init.sh.
+# Never referenced by any spoke ApplicationSet — ArgoCD itself only ever
+# runs on the hub.
 #
 # Values for the official Argo CD Helm chart (argoproj/argo-helm).
 # This installs Argo CD itself — it is NOT managed by Argo CD (chicken-and-egg),
-# so it's applied once by hand via install-argocd.sh, same way Cilium is
-# bootstrapped by cloud-init before deploy.sh ever runs.
+# so it's applied once by hand via init.sh / argocd/hub/00-argocd.yaml, same
+# way Cilium is bootstrapped by cloud-init before deploy.sh ever runs.
 #
 # Install:
 #   helm repo add argo https://argoproj.github.io/argo-helm
 #   helm repo update
 #   helm upgrade --install argocd argo/argo-cd \
 #     --namespace argocd --create-namespace \
-#     --values argocd-values.yaml \
+#     --values platform/values/hub/argocd.yaml \
 #     --wait
 
 # ── Global Configuration ──────────────────────────────────────────────────────

@@ -18,10 +18,13 @@ argocd/
 │   └── platform-apps.yaml   # AppProject — spoke workloads. server: "*", namespace-scoped.
 │
 ├── hub/                      # Applications. destination is ALWAYS the hub (kubernetes.default.svc).
-│   ├── 00-argocd.yaml
-│   ├── 00-external-secrets.yaml
-│   ├── 01-external-secrets-config.yaml
-│   └── 01-external-secrets-config/
+│   ├── 00-argocd.yaml          # values: hub/argocd.yaml (hub-only, no base/ counterpart)
+│   ├── 01-external-secrets.yaml
+│   ├── 01-cert-manager.yaml    # values: base/cert-manager.yaml + hub/cert-manager.yaml (overlay)
+│   ├── 02-external-secrets-config.yaml
+│   ├── 02-cert-manager-configs.yaml
+│   ├── 02-ingress-nginx.yaml   # values: base/ingress-nginx.yaml + hub/ingress-nginx.yaml (overlay)
+│   └── external-secrets-config/
 │       └── cluster-secret-store.yaml
 │
 ├── spokes/                   # ApplicationSets (cluster generator, selector role=spoke).
@@ -92,6 +95,47 @@ other two.
   ApplicationSets — the real boundary is the namespace whitelist, same as
   before.
 
+## Hub vs. spoke values — the `base/` + tier overlay pattern
+
+`platform/values/` has three directories:
+
+- **`platform/values/hub/`** — tier overrides consumed only by
+  `argocd/hub/*.yaml`. `argocd.yaml` (ArgoCD's own Helm values) is hub-only
+  and has no `base/` counterpart, since nothing else ever runs ArgoCD itself.
+- **`platform/values/spoke/`** — tier overrides consumed by
+  `argocd/spokes/infra/*.yaml` ApplicationSets (fleet-wide, one file → every
+  spoke) and mirrored by `helmfile/helmfile.yaml` for local/manual deploys.
+- **`platform/values/base/`** — config shared across **every** tier, for
+  charts that intentionally run identically on both hub and spoke. Today
+  that's `cert-manager` and `ingress-nginx`.
+
+For a base-backed chart, every consuming Application/ApplicationSet lists
+**two** `helm.valueFiles` entries, base first so the tier file can override
+it:
+
+```yaml
+helm:
+  valueFiles:
+    - $values/platform/values/base/cert-manager.yaml
+    - $values/platform/values/hub/cert-manager.yaml    # or spoke/, depending on tier
+```
+
+`platform/values/hub/cert-manager.yaml` and
+`platform/values/spoke/cert-manager.yaml` (same for `ingress-nginx.yaml`)
+are both empty (`{}`) today — hub and spoke don't currently need different
+settings for either chart. The moment they do, add keys to the relevant
+tier file only. `base/*.yaml` is never edited to special-case one tier, and
+no Application ever lists a values file from a directory it doesn't own —
+this replaced an earlier version of this repo where the hub Application
+pointed directly at `platform/values/spoke/*.yaml`, which worked but
+implied a hub → spoke dependency that didn't actually exist.
+
+One caveat worth knowing: `platform/values/base/ingress-nginx.yaml` enables
+OTel tracing pointed at `otel-collector-ds-collector.observability.svc`,
+which only exists on spokes. On the hub this is harmless — nginx logs
+failed span exports but keeps serving traffic — and can be turned off via
+a `platform/values/hub/ingress-nginx.yaml` override if it ever gets noisy.
+
 ## Known gaps carried forward / new
 
 - Everything previously listed in the single-cluster README (floating chart
@@ -107,3 +151,8 @@ other two.
   Application/ApplicationSet anywhere — same gap as the single-cluster
   layout, now needed on every spoke before `kube-prometheus-stack` can
   install there.
+- **Hub `ingress-nginx` inherits OTel tracing config** from the shared
+  `platform/values/spoke/ingress-nginx.yaml` file even though the hub has
+  no OTel collector to send those traces to (see the note in
+  `argocd/hub/02-ingress-nginx.yaml`). Harmless today (nginx just logs
+  export failures) but worth revisiting if it gets noisy.

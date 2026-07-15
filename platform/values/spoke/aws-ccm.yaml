@@ -1,4 +1,4 @@
-# k8s/aws-ccm/values.yaml
+# platform/values/spoke/aws-ccm.yaml
 # Overrides for the aws-cloud-controller-manager Helm chart
 
 args:

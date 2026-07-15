@@ -1,0 +1,16 @@
+# platform/values/spoke/ingress-nginx.yaml
+#
+# Spoke-tier override, layered on top of platform/values/base/ingress-nginx.yaml
+# by argocd/spokes/infra/10-ingress-nginx.yaml and helmfile.yaml.
+# Metrics/ServiceMonitor are tier-owned rather than base-owned since a tier
+# might reasonably run without its own Prometheus scraping it — currently
+# on, matching hub.
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  config:
+      enable-opentelemetry: "true"
+      otlp-collector-host: "otel-collector-ds-collector.observability.svc.cluster.local"
+      otlp-collector-port: "4317"

@@ -23,7 +23,6 @@ jobs:
 
       - name: Find and Lint all Helm charts
         run: |
-          # Dynamically find all Chart.yaml files and lint their directories
           find . -name "Chart.yaml" | while read -r chart_file; do
             chart_dir=$(dirname "$chart_file")
             echo "Linting chart located in: $chart_dir"

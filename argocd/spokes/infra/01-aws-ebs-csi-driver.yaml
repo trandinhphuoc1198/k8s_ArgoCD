@@ -28,7 +28,7 @@ spec:
           helm:
             releaseName: aws-ebs-csi-driver
             valueFiles:
-              - $values/platform/upstream-values/ebs-csi-values.yaml
+              - $values/platform/values/spoke/ebs-csi.yaml
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main
           ref: values

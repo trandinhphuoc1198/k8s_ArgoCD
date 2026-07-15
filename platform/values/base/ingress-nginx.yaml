@@ -1,0 +1,57 @@
+# platform/values/base/ingress-nginx.yaml
+#
+# Shared across every deployment tier. Consumed by BOTH:
+#   - argocd/hub/02-ingress-nginx.yaml            (hub)
+#   - argocd/spokes/infra/10-ingress-nginx.yaml   (every spoke)
+#   - helmfile/helmfile.yaml → ingress-nginx release
+#
+# Kept to the minimum truly tier-agnostic settings: replica/scheduling
+# shape, service type/ports, resource requests/limits, the OTel + ALB
+# health-check config, and defaultBackend. Anything a tier might reasonably
+# want to flip independently (e.g. metrics/serviceMonitor — see below)
+# belongs in platform/values/<tier>/ingress-nginx.yaml instead, layered on
+# top of this file via a second helm.valueFiles entry. Add tier-specific
+# overrides there, not here.
+#
+# NOTE: the OTel exporter settings below point at
+# otel-collector-ds-collector.observability.svc.cluster.local, which only
+# exists on spokes (the OTel stack is spoke-only). On the hub, nginx will
+# log failed span exports but continues serving traffic normally. If that
+# becomes noisy, disable OTel via a hub-tier override in
+# platform/values/hub/ingress-nginx.yaml rather than changing this file.
+controller:
+  replicaCount: 1
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+  config:
+      enable-opentelemetry: "false"
+      opentelemetry-trust-incoming-span: "true"
+      opentelemetry-operation-name: "$request_method $uri"
+      server-snippet: |
+        location /alb-health {
+          access_log off;
+          return 200 "ok";
+          add_header Content-Type text/plain;
+        }
+
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30080
+      https: 30443
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 128Mi
+
+defaultBackend:
+  enabled: true
