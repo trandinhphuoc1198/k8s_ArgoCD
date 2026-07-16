@@ -255,19 +255,19 @@ spec:
             {{- end }}
 
         # # ── Metrics ──────────────────────────────────────────────────────────
-        # metrics:
-        #   receivers:  [otlp]
-        #   processors: [memory_limiter, resource/env, batch]
-        #   exporters:
-        #     {{- if .Values.backends.debug.enabled }}
-        #     - debug
-        #     {{- end }}
-        #     {{- if .Values.backends.prometheus.enabled }}
-        #     - prometheusremotewrite
-        #     {{- end }}
-        #     {{- if .Values.backends.otlpExternal.enabled }}
-        #     - otlp/external
-        #     {{- end }}
+        metrics:
+          receivers:  [otlp]
+          processors: [memory_limiter, resource/env, batch]
+          exporters:
+            {{- if .Values.backends.debug.enabled }}
+            - debug
+            {{- end }}
+            {{- if .Values.backends.prometheus.enabled }}
+            - prometheusremotewrite
+            {{- end }}
+            {{- if .Values.backends.otlpExternal.enabled }}
+            - otlp/external
+            {{- end }}
 
         # ── Logs ─────────────────────────────────────────────────────────────
         # Receives:
