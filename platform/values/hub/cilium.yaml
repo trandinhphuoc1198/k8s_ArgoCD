@@ -1,0 +1,25 @@
+# platform/values/hub/cilium.yaml
+#
+# Hub-tier overlay, layered on top of platform/values/base/cilium.yaml by
+# argocd/hub/00-cilium.yaml. Cilium on the hub is installed by Terraform
+# (not this repo) — this file is what ArgoCD adopts against on takeover.
+# Before enabling automated sync, diff `helm get values cilium -n
+# kube-system` on the live hub against base + this file merged.
+#
+# TODO: replace with the hub's own control-plane private IP — this is NOT
+# the spoke's value (10.0.1.10). Check what Terraform passed as
+# k8sServiceHost when it installed Cilium on the hub.
+k8sServiceHost: "10.0.11.10"
+k8sServicePort: "6443"
+
+hubble:
+  ui:
+    ingress:
+      # Hub-specific hostname — deliberately different from the spoke's
+      # hubble.phuoctd6.shop to avoid a DNS collision if both are reachable.
+      hosts:
+        - hubble-hub.phuoctd6.shop
+      tls:
+        - secretName: hubble-hub-tls
+          hosts:
+            - hubble-hub.phuoctd6.shop

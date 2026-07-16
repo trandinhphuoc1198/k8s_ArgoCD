@@ -1,3 +1,7 @@
+# base + overlay: platform/values/base/auto-scaler.yaml holds config shared
+# by every tier; platform/values/spoke/auto-scaler.yaml is this tier's
+# override (autoDiscovery.clusterName, awsRegion). See
+# argocd/README.md#hub-vs-spoke-values.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -25,6 +29,7 @@ spec:
           helm:
             releaseName: cluster-autoscaler
             valueFiles:
+              - $values/platform/values/base/auto-scaler.yaml
               - $values/platform/values/spoke/auto-scaler.yaml
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main

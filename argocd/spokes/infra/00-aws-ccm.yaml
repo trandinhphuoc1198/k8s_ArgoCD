@@ -1,3 +1,6 @@
+# base + overlay: platform/values/base/aws-ccm.yaml holds config shared by
+# every tier; platform/values/spoke/aws-ccm.yaml is this tier's override
+# (empty today). See argocd/README.md#hub-vs-spoke-values.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -24,6 +27,7 @@ spec:
           targetRevision: "0.0.11"
           helm:
             valueFiles:
+              - $values/platform/values/base/aws-ccm.yaml
               - $values/platform/values/spoke/aws-ccm.yaml
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main

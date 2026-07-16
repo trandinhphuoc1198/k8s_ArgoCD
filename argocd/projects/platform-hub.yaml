@@ -6,8 +6,10 @@ metadata:
 spec:
   description: >
     The hub cluster's own management plane: ArgoCD's Helm release, External
-    Secrets Operator, the ClusterSecretStore, and the per-spoke
-    ExternalSecrets that register spoke clusters. Deliberately pinned to
+    Secrets Operator, the ClusterSecretStore, the per-spoke ExternalSecrets
+    that register spoke clusters, and the node-level infra (Cilium, AWS
+    CCM, cluster-autoscaler) that Terraform originally installed and this
+    project now tracks as source of truth. Deliberately pinned to
     server: https://kubernetes.default.svc only — nothing in this project
     should ever be templated out to a spoke by an ApplicationSet. Keeping
     this separate from platform-infra prevents a spoke-selector mistake from
@@ -18,6 +20,9 @@ spec:
     - "https://charts.external-secrets.io"
     - "https://charts.jetstack.io"
     - "https://kubernetes.github.io/ingress-nginx"
+    - "https://helm.cilium.io/"
+    - "https://kubernetes.github.io/cloud-provider-aws"
+    - "https://kubernetes.github.io/autoscaler"
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
 
   destinations:
@@ -29,6 +34,8 @@ spec:
       namespace: cert-manager
     - server: https://kubernetes.default.svc
       namespace: ingress-nginx
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
 
   clusterResourceWhitelist:
     - group: "*"

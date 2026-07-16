@@ -1,0 +1,11 @@
+# platform/values/hub/aws-ccm.yaml
+#
+# Hub-tier overlay, layered on top of platform/values/base/aws-ccm.yaml by
+# argocd/hub/00-aws-ccm.yaml. Empty today — the hub runs CCM identically to
+# spoke. Add keys here if that ever changes; do not edit base/aws-ccm.yaml
+# to special-case the hub.
+#
+# Terraform installed CCM on the hub originally — verify `helm get values
+# aws-cloud-controller-manager -n kube-system` matches base + this file
+# before enabling automated sync.
+{}

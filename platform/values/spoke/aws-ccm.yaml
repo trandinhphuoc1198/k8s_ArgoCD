@@ -1,61 +1,7 @@
 # platform/values/spoke/aws-ccm.yaml
-# Overrides for the aws-cloud-controller-manager Helm chart
-
-args:
-  - --v=2
-  - --cloud-provider=aws
-  - --configure-cloud-routes=false
-  # - --use-service-account-credentials=true   # needed if using IRSA
-
-image:
-  repository: registry.k8s.io/provider-aws/cloud-controller-manager
-  # tag: v1.36.0
-
-imagePullSecrets: []
-
-nameOverride: "aws-cloud-controller-manager"
-
-nodeSelector:
-  node-role.kubernetes.io/control-plane: ""
-
-tolerations:
-  - key: node.cloudprovider.kubernetes.io/uninitialized
-    value: "true"
-    effect: NoSchedule
-  - key: node-role.kubernetes.io/control-plane
-    effect: NoSchedule
-
-updateStrategy:
-  type: RollingUpdate
-  rollingUpdate:
-    maxUnavailable: 1
-
-dnsPolicy: Default
-
-hostNetworking: true
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 64Mi
-  limits:
-    cpu: 200m
-    memory: 128Mi
-
-priorityClassName: system-cluster-critical
-
-serviceAccount:
-  create: true
-  name: aws-cloud-controller-manager
-  annotations: {}
-
-podSecurityContext:
-  runAsNonRoot: true
-  seccompProfile:
-    type: RuntimeDefault
-
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop: ["ALL"]
+#
+# Spoke-tier overlay, layered on top of platform/values/base/aws-ccm.yaml by
+# argocd/spokes/infra/00-aws-ccm.yaml. Empty today — every spoke runs CCM
+# identically to the hub. Add keys here if that ever changes; do not edit
+# base/aws-ccm.yaml to special-case spokes.
+{}
