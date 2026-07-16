@@ -24,8 +24,6 @@ argocd/
 │   ├── 02-external-secrets-config.yaml
 │   ├── 02-cert-manager-configs.yaml
 │   ├── 02-ingress-nginx.yaml   # values: base/ingress-nginx.yaml + hub/ingress-nginx.yaml (overlay)
-│   └── external-secrets-config/
-│       └── cluster-secret-store.yaml
 │
 ├── spokes/                   # ApplicationSets (cluster generator, selector role=spoke).
 │   ├── infra/                #   one Application PER SPOKE PER FILE, auto-created/removed
