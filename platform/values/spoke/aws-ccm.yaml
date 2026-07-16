@@ -47,8 +47,7 @@ priorityClassName: system-cluster-critical
 serviceAccount:
   create: true
   name: aws-cloud-controller-manager
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/aws-cloud-controller-manager
+  annotations: {}
 
 podSecurityContext:
   runAsNonRoot: true
