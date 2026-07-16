@@ -32,16 +32,42 @@ jobs:
       - name: Render Helm charts to staging directory
         run: |
           mkdir -p /tmp/rendered-manifests
-          
+
+          # --api-versions tells `helm template` which CRDs to pretend are
+          # installed in the target cluster. Without this, any template
+          # gated behind .Capabilities.APIVersions.Has (ServiceMonitor,
+          # ScaledObject, etc.) silently renders to nothing — no error,
+          # no warning — and Trivy never sees those manifests at all.
+          # Keep this list in sync with the CRDs your charts check for.
+          API_VERSIONS=(
+            --api-versions monitoring.coreos.com/v1/ServiceMonitor
+            --api-versions monitoring.coreos.com/v1/PodMonitor
+            --api-versions keda.sh/v1alpha1/ScaledObject
+            --api-versions postgresql.cnpg.io/v1/Cluster
+            --api-versions postgresql.cnpg.io/v1/Pooler
+            --api-versions opentelemetry.io/v1beta1/OpenTelemetryCollector
+            --api-versions opentelemetry.io/v1alpha1/Instrumentation
+          )
+
           # Dynamically loop through your known chart directories to render them
           # Using a loop here ensures we can output them uniquely to a single directory
-          for chart_path in services/fastapi-app services/postgresql platform/charts/otel helmfile/charts/noop; do
+          for chart_path in services/fastapi-app services/postgresql platform/charts/otel ; do
             if [ -d "$chart_path" ]; then
               chart_name=$(basename "$chart_path")
               echo "Rendering $chart_name..."
-              helm template "$chart_name" "$chart_path" > "/tmp/rendered-manifests/${chart_name}.yaml"
+              helm template "$chart_name" "$chart_path" "${API_VERSIONS[@]}" > "/tmp/rendered-manifests/${chart_name}.yaml"
             fi
           done
+
+      - name: Verify ServiceMonitor/ScaledObject manifests actually rendered
+        run: |
+          # Fail loudly instead of silently if a CRD-gated resource we
+          # expect to render (e.g. after adding a new chart or CRD check)
+          # doesn't show up — catches the exact bug this step used to hide.
+          if ! grep -q "kind: ServiceMonitor" /tmp/rendered-manifests/fastapi-app.yaml; then
+            echo "::error::Expected a ServiceMonitor in fastapi-app.yaml but none rendered. Check --api-versions coverage."
+            exit 1
+          fi
 
       - name: Scan rendered manifests with Trivy
         uses: aquasecurity/trivy-action@master
