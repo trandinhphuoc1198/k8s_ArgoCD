@@ -255,6 +255,7 @@ spec:
             {{- end }}
 
         # # ── Metrics ──────────────────────────────────────────────────────────
+        {{- if or .Values.backends.debug.enabled .Values.backends.prometheus.enabled .Values.backends.otlpExternal.enabled }}
         metrics:
           receivers:  [otlp]
           processors: [memory_limiter, resource/env, batch]
