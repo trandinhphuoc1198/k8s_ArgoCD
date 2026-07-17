@@ -8,6 +8,8 @@ storageClasses:
 
 controller:
   replicaCount: 2
+  extraVolumeTags:
+    kubernetes.io/cluster/spoke-dev-k8s: "owned"
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: kubernetes.io/hostname
