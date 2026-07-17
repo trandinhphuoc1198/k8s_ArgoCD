@@ -7,11 +7,7 @@ spec:
   description: >
     Cluster infrastructure for SPOKE clusters — CNI, autoscaler, storage,
     ingress, observability stack, KEDA, the CNPG operator. High blast
-    radius, low change frequency. Owns CRDs, StorageClasses, ClusterRoles,
-    etc. by design. Destinations are wildcarded on server because these
-    Applications are generated per-spoke by ApplicationSets (cluster
-    generator) — the real boundary is the namespace list below, not which
-    cluster.
+    radius, low change frequency
 
   sourceRepos:
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"

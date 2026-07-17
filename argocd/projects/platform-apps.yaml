@@ -5,11 +5,7 @@ metadata:
   namespace: argocd
 spec:
   description: >
-    The application layer for SPOKE clusters — fastapi-app and its database
-    (postgresql, via the CNPG operator that platform-infra owns). Low blast
-    radius, changes often. Deliberately cannot create anything
-    cluster-scoped. Destinations are wildcarded on server for the same
-    reason as platform-infra: these Applications are generated per-spoke.
+    The application layer for SPOKE clusters
 
   # Both charts here are local to this repo — no external Helm chart repos
   # needed, unlike platform-infra.

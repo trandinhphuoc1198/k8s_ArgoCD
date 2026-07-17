@@ -8,13 +8,7 @@ spec:
     The hub cluster's own management plane: ArgoCD's Helm release, External
     Secrets Operator, the ClusterSecretStore, the per-spoke ExternalSecrets
     that register spoke clusters, and the node-level infra (Cilium, AWS
-    CCM, cluster-autoscaler) that Terraform originally installed and this
-    project now tracks as source of truth. Deliberately pinned to
-    server: https://kubernetes.default.svc only — nothing in this project
-    should ever be templated out to a spoke by an ApplicationSet. Keeping
-    this separate from platform-infra prevents a spoke-selector mistake from
-    ever matching ArgoCD's own management resources.
-
+    CCM, cluster-autoscaler)
   sourceRepos:
     - "https://argoproj.github.io/argo-helm"
     - "https://charts.external-secrets.io"
