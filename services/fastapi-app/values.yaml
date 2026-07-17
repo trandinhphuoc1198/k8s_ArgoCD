@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: gintaku98/k8s_fastapi
-  tag: d107cd9676c070ef1368538489c18516f53dd1e7
+  tag: e85c48dfcdd006ef694d69fe99b1715f9594d175
   pullPolicy: IfNotPresent
 
 nameOverride: "fastapi-app"
