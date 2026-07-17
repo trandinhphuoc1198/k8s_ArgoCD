@@ -21,13 +21,6 @@
 # platform/values/hub/ingress-nginx.yaml rather than changing this file.
 controller:
   replicaCount: 1
-  topologySpreadConstraints:
-    - maxSkew: 2
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: DoNotSchedule
-      labelSelector:
-        matchLabels:
-          app.kubernetes.io/name: ingress-nginx
   config:
       enable-opentelemetry: "false"
       opentelemetry-trust-incoming-span: "true"
