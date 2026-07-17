@@ -22,7 +22,7 @@ spec:
     name: argocd-clusters-store
     kind: ClusterSecretStore
   target:
-    name: spoke-dev
+    name: "{{ .name }}"
     template:
       metadata:
         labels:
@@ -36,4 +36,4 @@ spec:
           {"bearerToken":"{{ .token }}","tlsClientConfig":{"insecure":false,"caData":"{{ .caData }}"}}
   dataFrom:
     - extract:
-        key: argocd-clusters/spoke-dev
+        key: argocd-clusters/spoke-dev-k8s
