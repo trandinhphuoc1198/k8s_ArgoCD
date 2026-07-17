@@ -22,7 +22,7 @@ spec:
     name: argocd-clusters-store
     kind: ClusterSecretStore
   target:
-    name: "{{ .name }}"
+    name: spoke-dev
     template:
       metadata:
         labels:
