@@ -1,16 +1,16 @@
 # argocd/clusters/spoke-dev.yaml
 #
-# Registers the "spoke-dev" cluster with ArgoCD. ESO watches AWS Secrets
-# Manager key "argocd-clusters/spoke-dev" (populated out-of-band when the
-# spoke is provisioned — see argocd/bootstrap/README for the expected
-# {name, server, token, caData} shape) and materializes it into the
-# argocd-namespace Secret that ArgoCD's cluster list reads.
+# Registers a spoke cluster with ArgoCD. ESO watches AWS Secrets Manager
+# key "argocd-clusters/spoke-dev" (populated by register-with-hub.sh.tpl,
+# which now pushes {name, role, server, token, caData}) and materializes it
+# into the argocd-namespace Secret that ArgoCD's cluster list reads.
 #
-# The "role: spoke" label is what every ApplicationSet's cluster generator
-# selector matches on — that's the switch that fans out all of
-# argocd/spokes/ onto this cluster automatically. Nothing else needs to
-# change when a new spoke is added: drop a file like this one in, ESO +
-# the ApplicationSet controller do the rest.
+# Both "cluster-name" and "cluster-role" labels are templated straight from
+# the pushed secret's fields, so they can never drift from what the spoke
+# actually registered as. "cluster-role" is what every ApplicationSet's
+# cluster generator selector matches on (spokes/** selects cluster-role:
+# workload); "cluster-name" is what argocd-register-spoke.yml now queries
+# directly to confirm a specific spoke registered successfully.
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
@@ -27,7 +27,8 @@ spec:
       metadata:
         labels:
           argocd.argoproj.io/secret-type: cluster
-          cluster-role: workload
+          cluster-name: "{{ .name }}"
+          cluster-role: "{{ .role }}"
       data:
         name: "{{ .name }}"
         server: "{{ .server }}"
