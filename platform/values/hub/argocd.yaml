@@ -35,6 +35,10 @@ global:
 
 # ── Server exposure ───────────────────────────────────────────────────────────
 configs:
+  secret:
+    argocdServerAdminPassword: "$2a$12$cnFbKvtxU7W6VhsEZ4QxQ.OToEmuyQQF5spuESCibU5rR3hwuJ956"
+    argocdServerAdminPasswordMtime: "2026-07-18T00:00:00Z"
+
   params:
     # Keep server.insecure: true because TLS is terminated at your Nginx Ingress.
     # This prevents redundant double-encryption overhead between Ingress and the backend pod.
