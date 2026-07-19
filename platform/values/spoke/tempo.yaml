@@ -127,10 +127,10 @@ querier:
   resources:
     requests:
       cpu: 200m
-      memory: 64Mi
+      memory: 128Mi
     limits:
       cpu: 500m
-      memory: 64Mi
+      memory: 128Mi
 
   extraEnv:
     - name: AWS_REGION
