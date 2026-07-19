@@ -27,7 +27,7 @@ spec:
   # master-worker runtimes like Gunicorn — gRPC uses background threads that
   # don't survive fork() cleanly.
   exporter:
-    endpoint: http://$(HOST_IP):{{ .Values.collectorDaemonSet.ports.otlpHttp }}
+    endpoint: http://otel-collector-ds-collector.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.collectorDaemonSet.ports.otlpHttp }}
 
   # ── Propagators ──────────────────────────────────────────────────────────
   propagators:
