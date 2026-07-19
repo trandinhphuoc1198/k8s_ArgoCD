@@ -269,6 +269,7 @@ spec:
             {{- if .Values.backends.otlpExternal.enabled }}
             - otlp/external
             {{- end }}
+        {{- end }}
 
         # ── Logs ─────────────────────────────────────────────────────────────
         # Receives:
