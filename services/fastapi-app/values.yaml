@@ -19,8 +19,6 @@ ingress:
   enabled: true
   className: nginx
   annotations:
-    # nginx.ingress.kubernetes.io/rewrite-target: /$2
-    # nginx.ingress.kubernetes.io/x-forwarded-prefix: "/fastapi-app"
     cert-manager.io/cluster-issuer: internal-ca-issuer
   hosts:
     - host: "fastapi.phuoctd6.shop"

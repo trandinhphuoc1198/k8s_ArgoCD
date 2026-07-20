@@ -1,5 +1,3 @@
-# platform/values/base/cilium.yaml
-#
 # Shared across every deployment tier. Consumed by BOTH:
 #   - argocd/hub/00-cilium.yaml            (hub)
 #   - argocd/spokes/infra/00-cilium.yaml   (every spoke)
@@ -15,10 +13,34 @@
 # Each tier layers platform/values/<tier>/cilium.yaml on top of this file
 # via a second helm.valueFiles entry, tier file last so it wins.
 
-routingMode: tunnel
+# ── Routing ────────────────────────────────────────────────────────────────
+# Native routing (no VXLAN encapsulation) instead of the previous
+# routingMode: tunnel. Nodes are not L2-adjacent (each cluster spans 2
+# private subnets/AZs), so pod-to-pod traffic across AZs relies entirely on
+# AWS VPC route tables, not direct netlink routes between nodes — hence
+# autoDirectNodeRoutes: false below. Those VPC routes are synced by AWS
+# Cloud Controller Manager's route controller (platform/values/base/aws-ccm.yaml,
+# --configure-cloud-routes=true), not by Cilium itself. CCM watches
+# node.spec.podCIDR (assigned by kube-controller-manager under
+# ipam.mode: kubernetes) and creates/removes the matching VPC route
+# automatically, including on node replacement — see modules/ec2's
+# master_ccm_policy for the IAM this needs and modules/vpc for the
+# kubernetes.io/cluster/<name> tag CCM discovers the route table by.
+routingMode: native
+
+# Must match pod_cidr in every live/*/envs/*/terraform.tfvars. Tells
+# Cilium which destination IPs are "in-cluster" (route natively, never
+# masquerade) vs external (masquerade via bpf.masquerade below).
+ipv4NativeRoutingCIDR: "192.168.0.0/16"
 
 ipam:
   mode: kubernetes
+
+# false: nodes are spread across multiple AZs/subnets, so direct
+# node-to-node netlink routes (which only work for L2-adjacent nodes)
+# don't apply here. Leaving this true would have Cilium's own node-route
+# reconciler fight the cloud-managed routes from AWS CCM.
+autoDirectNodeRoutes: false
 
 kubeProxyReplacement: "true"
 
