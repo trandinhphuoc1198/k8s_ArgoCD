@@ -9,7 +9,7 @@
 # to the relevant tier file — do not special-case a tier here.
 
 args:
-  - --v=6
+  - --v=9
   - --cloud-provider=aws
   # Native routing (see platform/values/base/cilium.yaml) needs AWS VPC
   # route tables kept in sync with each node's pod CIDR — this is exactly
