@@ -9,7 +9,7 @@
 # to the relevant tier file — do not special-case a tier here.
 
 args:
-  - --v=9
+  - --v=6
   - --cloud-provider=aws
   # Native routing (see platform/values/base/cilium.yaml) needs AWS VPC
   # route tables kept in sync with each node's pod CIDR — this is exactly
@@ -25,8 +25,8 @@ args:
   - --cluster-cidr=192.168.0.0/16
 
 image:
-  repository: registry.k8s.io/provider-aws/cloud-controller-manager
-  tag: master
+  repository: docker.io/gintaku98/aws-cloud-controller-manager
+  tag: v1.36.1
 
 imagePullSecrets: []
 
