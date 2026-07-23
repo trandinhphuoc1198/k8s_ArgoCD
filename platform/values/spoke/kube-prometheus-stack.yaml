@@ -2,7 +2,7 @@ grafana:
   adminPassword: kagura12
   deploymentStrategy:
     type: Recreate
-  
+
   # env:
   #   GF_SERVER_ROOT_URL: http://aa-123124710.ap-northeast-1.elb.amazonaws.com/grafana/
   #   GF_SERVER_SERVE_FROM_SUB_PATH: "true"
@@ -17,19 +17,12 @@ grafana:
   service:
     type: ClusterIP
 
+  # Ingress replaced by platform/gateway-routes/spoke/grafana-httproute.yaml
+  # (Gateway API, via the shared spoke-gateway). Left explicitly disabled
+  # here so a future `helm upgrade` can't silently re-enable ingress-nginx
+  # routing alongside it.
   ingress:
-    enabled: true
-    ingressClassName: nginx
-    path: /
-    annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "internal-ca-issuer"
-    hosts:
-      - grafana.phuoctd6.shop
-    tls:
-      - secretName: grafana-tls
-        hosts:
-          - grafana.phuoctd6.shop
+    enabled: false
 
   resources:
     requests:
@@ -51,7 +44,7 @@ prometheus:
     retention: 2d
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
-    
+
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -70,35 +63,14 @@ prometheus:
         cpu: 300m
         memory: 800Mi
 
+  # Ingress replaced by platform/gateway-routes/spoke/prometheus-httproute.yaml
   ingress:
-    enabled: true
-    ingressClassName: nginx
-    path: /
-    annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "internal-ca-issuer"
-    hosts:
-      - prometheus.phuoctd6.shop
-    tls:
-      - secretName: prometheus-tls
-        hosts:
-          - prometheus.phuoctd6.shop
+    enabled: false
 
 alertmanager:
+  # Ingress replaced by platform/gateway-routes/spoke/alertmanager-httproute.yaml
   ingress:
-    enabled: true
-    ingressClassName: nginx
-    annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "internal-ca-issuer"
-    hosts:
-      - alertmanager.phuoctd6.shop
-    paths:
-      - /
-    tls:
-      - secretName: alertmanager-tls
-        hosts:
-          - alertmanager.phuoctd6.shop
+    enabled: false
 
 kube-state-metrics:
   resources:

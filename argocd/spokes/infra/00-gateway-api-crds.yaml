@@ -1,0 +1,39 @@
+# Spoke counterpart of argocd/hub/00-gateway-api-crds.yaml — same CRDs,
+# fanned out to every registered spoke. Wave "-1", one wave ahead of
+# Cilium (argocd/spokes/infra/00-cilium.yaml, wave "00") since Cilium's
+# Gateway API controller needs these CRDs to exist at agent startup.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: gateway-api-crds
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            cluster-role: workload
+  template:
+    metadata:
+      name: 'gateway-api-crds-{{name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform-infra
+      source:
+        repoURL: https://github.com/kubernetes-sigs/gateway-api.git
+        targetRevision: v1.1.0
+        path: config/crd/standard
+        directory:
+          recurse: true
+      destination:
+        server: '{{server}}'
+        namespace: gateway-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

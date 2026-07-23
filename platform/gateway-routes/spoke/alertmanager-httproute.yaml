@@ -1,0 +1,21 @@
+# Replaces platform/values/spoke/kube-prometheus-stack.yaml -> alertmanager.ingress.
+# Delete that block once this is confirmed working.
+#
+# Service name/port: VERIFY against your live cluster — conventionally
+# "<fullname>-kube-prometheus-alertmanager" on port 9093.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: spoke-gateway
+      namespace: gateway-system
+      sectionName: alertmanager-https
+  hostnames:
+    - alertmanager.phuoctd6.shop
+  rules:
+    - backendRefs:
+        - name: monitoring-kube-prometheus-alertmanager
+          port: 9093

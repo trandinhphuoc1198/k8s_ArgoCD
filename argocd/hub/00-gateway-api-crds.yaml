@@ -1,0 +1,35 @@
+# Installs the upstream Gateway API CRDs (standard channel: GatewayClass,
+# Gateway, HTTPRoute, ReferenceGrant). Must land BEFORE Cilium starts its
+# Gateway API controller (argocd/hub/00-cilium.yaml, also wave "00") — hence
+# wave "-1" here. ArgoCD sync-waves accept negative integers.
+#
+# Source is the upstream gateway-api repo's kustomize CRD directory rather
+# than a Helm chart — there is no official Helm chart for the CRDs alone.
+# Pin targetRevision to a tag that matches what Cilium 1.16.0 supports
+# (Gateway API v1.1.x). Bump both together.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-hub
+  source:
+    repoURL: https://github.com/kubernetes-sigs/gateway-api.git
+    targetRevision: v1.1.0
+    path: config/crd/standard
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

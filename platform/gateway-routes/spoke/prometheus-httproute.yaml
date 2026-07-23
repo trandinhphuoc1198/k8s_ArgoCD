@@ -1,0 +1,22 @@
+# Replaces platform/values/spoke/kube-prometheus-stack.yaml -> prometheus.ingress.
+# Delete that block once this is confirmed working.
+#
+# Service name/port: VERIFY against your live cluster — conventionally
+# "<fullname>-kube-prometheus-prometheus" on port 9090 for this chart with
+# fullnameOverride: "monitoring".
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: spoke-gateway
+      namespace: gateway-system
+      sectionName: prometheus-https
+  hostnames:
+    - prometheus.phuoctd6.shop
+  rules:
+    - backendRefs:
+        - name: monitoring-kube-prometheus-prometheus
+          port: 9090

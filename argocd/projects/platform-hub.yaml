@@ -13,7 +13,7 @@ spec:
     - "https://argoproj.github.io/argo-helm"
     - "https://charts.external-secrets.io"
     - "https://charts.jetstack.io"
-    - "https://kubernetes.github.io/ingress-nginx"
+    - "https://github.com/kubernetes-sigs/gateway-api.git"
     - "https://helm.cilium.io/"
     - "https://kubernetes.github.io/cloud-provider-aws"
     - "https://kubernetes.github.io/autoscaler"
@@ -27,7 +27,7 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: cert-manager
     - server: https://kubernetes.default.svc
-      namespace: ingress-nginx
+      namespace: gateway-system
     - server: https://kubernetes.default.svc
       namespace: kube-system
 

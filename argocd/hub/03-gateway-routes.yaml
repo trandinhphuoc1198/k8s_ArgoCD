@@ -1,0 +1,27 @@
+# Hub counterpart of argocd/spokes/infra/15-gateway-routes.yaml. Deploys
+# the ArgoCD-server and Hubble-UI HTTPRoutes. Wave "03": after the hub
+# Gateway (wave "02").
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-routes
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "03"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-hub
+  source:
+    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+    targetRevision: main
+    path: platform/gateway-routes/hub
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

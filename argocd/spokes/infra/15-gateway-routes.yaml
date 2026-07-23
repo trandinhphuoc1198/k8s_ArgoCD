@@ -1,0 +1,43 @@
+# Plain manifests (not a Helm chart), same pattern as
+# argocd/spokes/infra/20-cilium-servicemonitors.yaml. Deploys the
+# HTTPRoutes for services this repo doesn't own the chart for (Grafana,
+# Prometheus, Alertmanager, Hubble UI). fastapi-app owns its own
+# HTTPRoute inside its chart instead (services/fastapi-app/templates/httproute.yaml).
+#
+# Wave "15": after the Gateway (wave "10") and kube-prometheus-stack
+# (wave "10") so the Gateway listeners and backend Services both exist,
+# before Grafana dashboards / Loki / Tempo (wave "30") which don't care
+# about ordering relative to this.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: gateway-routes
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            cluster-role: workload
+  template:
+    metadata:
+      name: 'gateway-routes-{{name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "15"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform-infra
+      source:
+        repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+        targetRevision: main
+        path: platform/gateway-routes/spoke
+      destination:
+        server: '{{server}}'
+        namespace: gateway-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

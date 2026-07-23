@@ -12,14 +12,7 @@
 k8sServiceHost: "10.0.11.10"
 k8sServicePort: "6443"
 
-hubble:
-  ui:
-    ingress:
-      # Hub-specific hostname — deliberately different from the spoke's
-      # hubble.phuoctd6.shop to avoid a DNS collision if both are reachable.
-      hosts:
-        - hubble-hub.phuoctd6.shop
-      tls:
-        - secretName: hubble-hub-tls
-          hosts:
-            - hubble-hub.phuoctd6.shop
+# Hubble UI's hostname now lives on the hub Gateway
+# (platform/gateway-api/hub-gateway.yaml, listener "hubble-https",
+# hostname hubble-hub.phuoctd6.shop) instead of here — base/cilium.yaml
+# turns hubble.ui.ingress off entirely now that ingress-nginx is gone.

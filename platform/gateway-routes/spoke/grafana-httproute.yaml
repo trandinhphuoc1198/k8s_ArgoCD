@@ -1,0 +1,26 @@
+# Replaces the Ingress previously defined inline under
+# platform/values/spoke/kube-prometheus-stack.yaml -> grafana.ingress.
+# That block should be deleted from that values file now that this
+# HTTPRoute owns routing (see platform/gateway-routes/README.md).
+#
+# Service name/port: kube-prometheus-stack is installed with
+# fullnameOverride: "monitoring" (argocd/spokes/infra/10-kube-prometheus-stack.yaml).
+# The Grafana subchart's Service is conventionally "<fullname>-grafana".
+# VERIFY against your live cluster (`kubectl get svc -n monitoring`) before
+# relying on this — exact naming can shift between chart versions.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: spoke-gateway
+      namespace: gateway-system
+      sectionName: grafana-https
+  hostnames:
+    - grafana.phuoctd6.shop
+  rules:
+    - backendRefs:
+        - name: monitoring-grafana
+          port: 80

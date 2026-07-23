@@ -12,3 +12,17 @@
 crds:
   enabled: true
   keep: true
+
+# ── Gateway API support ───────────────────────────────────────────────────
+# Now that ingress-nginx/Ingress is gone, TLS certs are requested via
+# annotations on Gateway resources (platform/gateway-api/) instead of on
+# Ingress objects. This flag makes cert-manager's gateway-shim controller
+# watch Gateways (same cert-manager.io/cluster-issuer annotation pattern as
+# Ingress used) and issue one Certificate per TLS listener that has a
+# certificateRefs entry — chart also wires up the extra RBAC this needs.
+#
+# Requires the Gateway API CRDs to exist before cert-manager starts —
+# already guaranteed by wave ordering (CRDs at wave "-1", cert-manager at
+# wave "01"/"02").
+config:
+  enableGatewayAPI: true

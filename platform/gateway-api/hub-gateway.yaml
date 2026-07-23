@@ -1,0 +1,60 @@
+# platform/gateway-api/hub-gateway.yaml
+#
+# Hub counterpart of spoke-gateway.yaml — fronts ArgoCD's own UI and the
+# hub's Hubble UI. Deployed by argocd/hub/02-gateway.yaml (replaces the old
+# argocd/hub/02-ingress-nginx.yaml at the same sync-wave).
+#
+# See spoke-gateway.yaml for the full Path-B rationale (AWS CCM provisions
+# a real NLB per Gateway; retire the old manual ALB) — same applies here,
+# fronting argocd.phuoctd6.shop + hubble-hub.phuoctd6.shop on one NLB.
+# After first sync:
+#   kubectl get svc -n gateway-system cilium-gateway-hub-gateway \
+#     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+# and point both hostnames' Route53 records at that NLB DNS name.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: hub-gateway
+  namespace: gateway-system
+  annotations:
+    cert-manager.io/cluster-issuer: internal-ca-issuer
+spec:
+  gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-internal: "false"
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: argocd-https
+      hostname: argocd.phuoctd6.shop
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: argocd-server-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: hubble-https
+      hostname: hubble-hub.phuoctd6.shop
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: hubble-hub-tls
+      allowedRoutes:
+        namespaces:
+          from: All

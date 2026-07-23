@@ -1,0 +1,32 @@
+# Replaces argocd/hub/02-ingress-nginx.yaml — deploys the shared hub Cilium
+# Gateway (platform/gateway-api/hub-gateway.yaml) instead of the
+# ingress-nginx controller. Same sync-wave "02" the old file used.
+#
+# include: only picks up hub-gateway.yaml — spoke-gateway.yaml is applied
+# separately by argocd/spokes/infra/10-gateway.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "02"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-hub
+  source:
+    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+    targetRevision: main
+    path: platform/gateway-api
+    directory:
+      include: "hub-gateway.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

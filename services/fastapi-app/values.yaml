@@ -15,20 +15,16 @@ service:
   port: 80
   targetPort: 8000
 
-ingress:
+# Replaces the old `ingress:` block (ingress-nginx). Routes through the
+# shared spoke Gateway (platform/gateway-api/spoke-gateway.yaml) instead of
+# an app-owned Ingress. TLS/hostname/cert now live on that Gateway's
+# "fastapi-https" listener — this HTTPRoute just has to name it.
+httpRoute:
   enabled: true
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: internal-ca-issuer
-  hosts:
-    - host: "fastapi.phuoctd6.shop"
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - hosts:
-        - fastapi.phuoctd6.shop
-      secretName: fastapi-app-tls
+  hostname: "fastapi.phuoctd6.shop"
+  gatewayName: spoke-gateway
+  gatewayNamespace: gateway-system
+  listenerName: fastapi-https
 
 resources:
   requests:

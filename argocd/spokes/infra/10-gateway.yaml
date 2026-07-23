@@ -1,0 +1,44 @@
+# Replaces argocd/spokes/infra/10-ingress-nginx.yaml — deploys the shared
+# Cilium Gateway (platform/gateway-api/spoke-gateway.yaml) instead of the
+# ingress-nginx controller. Same sync-wave "10" the old file used: needs
+# cert-manager's CRDs/webhook (wave "01") and Cilium's Gateway API
+# controller (wave "00") up first.
+#
+# include: only picks up spoke-gateway.yaml from the shared
+# platform/gateway-api/ directory — hub-gateway.yaml is applied separately
+# by argocd/hub/02-gateway.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: gateway
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            cluster-role: workload
+  template:
+    metadata:
+      name: 'gateway-{{name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "10"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform-infra
+      source:
+        repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+        targetRevision: main
+        path: platform/gateway-api
+        directory:
+          include: "spoke-gateway.yaml"
+      destination:
+        server: '{{server}}'
+        namespace: gateway-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
