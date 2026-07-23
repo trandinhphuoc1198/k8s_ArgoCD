@@ -23,7 +23,7 @@ spec:
     metadata:
       name: 'gateway-routes-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "15"
+        argocd.argoproj.io/sync-wave: "20"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

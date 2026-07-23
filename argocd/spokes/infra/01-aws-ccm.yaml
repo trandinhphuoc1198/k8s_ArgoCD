@@ -16,7 +16,7 @@ spec:
     metadata:
       name: 'aws-cloud-controller-manager-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "00"
+        argocd.argoproj.io/sync-wave: "01"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

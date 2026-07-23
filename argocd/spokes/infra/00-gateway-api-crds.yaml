@@ -17,7 +17,7 @@ spec:
     metadata:
       name: 'gateway-api-crds-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "-1"
+        argocd.argoproj.io/sync-wave: "00"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

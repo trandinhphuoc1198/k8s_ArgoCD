@@ -24,7 +24,7 @@ spec:
     metadata:
       name: 'cilium-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "00"
+        argocd.argoproj.io/sync-wave: "01"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
