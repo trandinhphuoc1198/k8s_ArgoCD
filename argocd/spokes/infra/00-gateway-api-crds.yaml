@@ -24,8 +24,8 @@ spec:
       project: platform-infra
       source:
         repoURL: https://github.com/kubernetes-sigs/gateway-api.git
-        targetRevision: v1.4.1
-        path: config/crd/experimental
+        targetRevision: v1.6.1
+        path: config/crd/standard
         directory:
           recurse: true
       destination:
