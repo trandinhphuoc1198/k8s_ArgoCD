@@ -25,4 +25,7 @@ crds:
 # already guaranteed by wave ordering (CRDs at wave "-1", cert-manager at
 # wave "01"/"02").
 config:
+  apiVersion: controller.config.cert-manager.io/v1alpha1
+  kind: ControllerConfiguration
   enableGatewayAPI: true
+  featureGates: ...
