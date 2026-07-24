@@ -1,14 +1,12 @@
-# New addition — cluster-autoscaler was not previously installed on the hub
-# (Terraform only installed Cilium + CCM there). This is a fresh install,
-# not an adoption — safe to sync from the start, no live-state diffing
-# needed first (unlike 00-cilium.yaml / 00-aws-ccm.yaml).
+# Wave 20 — needs Cilium's pod networking (wave "10") up first. This is a
+# fresh install on the hub, not an adoption of an existing Terraform
+# release (unlike 10-cilium.yaml / 10-aws-ccm.yaml) — safe to sync from
+# the start, no live-state diffing needed first.
 #
 # base + overlay: platform/values/base/auto-scaler.yaml holds config shared
 # by every tier; platform/values/hub/auto-scaler.yaml is this tier's
 # override (autoDiscovery.clusterName, awsRegion). See
 # argocd/README.md#hub-vs-spoke-values.
-#
-# Sync-wave 01: needs Cilium's pod networking (wave 00) up first.
 #
 # Confirm the hub actually sits behind an ASG before syncing this — if it's
 # a fixed single control-plane node, this chart has nothing to discover.

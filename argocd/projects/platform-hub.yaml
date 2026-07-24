@@ -7,8 +7,8 @@ spec:
   description: >
     The hub cluster's own management plane: ArgoCD's Helm release, External
     Secrets Operator, the ClusterSecretStore, the per-spoke ExternalSecrets
-    that register spoke clusters, and the node-level infra (Cilium, AWS
-    CCM, cluster-autoscaler)
+    that register spoke clusters, the node-level infra (Cilium, AWS CCM,
+    cluster-autoscaler)
   sourceRepos:
     - "https://argoproj.github.io/argo-helm"
     - "https://charts.external-secrets.io"

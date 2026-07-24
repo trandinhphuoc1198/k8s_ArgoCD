@@ -1,8 +1,8 @@
 # root-apps/root-spokes.yaml
 #
 # App-of-apps for everything that gets fanned out to every registered SPOKE
-# cluster: platform infra (CNI, storage, ingress, observability, operators)
-# and application workloads (postgresql, fastapi-app).
+# cluster: platform infra (CNI, storage, Gateway API, observability,
+# operators) and application workloads (postgresql, fastapi-app).
 #
 # Every file under argocd/spokes/ is an ApplicationSet using the "clusters"
 # generator (selector: role=spoke), so this Application just needs to apply

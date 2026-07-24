@@ -1,6 +1,6 @@
-# Hub counterpart of argocd/spokes/infra/15-gateway-routes.yaml. Deploys
-# the ArgoCD-server and Hubble-UI HTTPRoutes. Wave "03": after the hub
-# Gateway (wave "02").
+# Wave 40 — deploys the ArgoCD-server and Hubble-UI HTTPRoutes
+# (platform/gateway-routes/hub/). Needs the hub Gateway's listeners + TLS
+# certs to exist first (30-gateway.yaml, wave "30").
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

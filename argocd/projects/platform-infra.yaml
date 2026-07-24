@@ -6,8 +6,8 @@ metadata:
 spec:
   description: >
     Cluster infrastructure for SPOKE clusters — CNI, autoscaler, storage,
-    ingress, observability stack, KEDA, the CNPG operator. High blast
-    radius, low change frequency
+    ingress/Gateway API, observability stack, KEDA, the CNPG operator. High
+    blast radius, low change frequency
 
   sourceRepos:
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"

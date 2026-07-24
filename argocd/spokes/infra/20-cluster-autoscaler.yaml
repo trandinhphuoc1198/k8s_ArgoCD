@@ -1,3 +1,5 @@
+# Wave 20 — needs Cilium's pod networking (wave "10") up first.
+#
 # base + overlay: platform/values/base/auto-scaler.yaml holds config shared
 # by every tier; platform/values/spoke/auto-scaler.yaml is this tier's
 # override (autoDiscovery.clusterName, awsRegion). See
@@ -17,7 +19,7 @@ spec:
     metadata:
       name: 'cluster-autoscaler-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "01"
+        argocd.argoproj.io/sync-wave: "20"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

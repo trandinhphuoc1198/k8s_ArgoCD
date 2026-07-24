@@ -1,7 +1,7 @@
-# Plain ConfigMaps (not a Helm chart) — Grafana's sidecar in
+# Wave 40 — plain ConfigMaps (not a Helm chart) — Grafana's sidecar in
 # kube-prometheus-stack picks them up via the grafana_dashboard=1 label.
-# Needs the monitoring namespace + Grafana sidecar from wave 20 on that
-# spoke.
+# Needs the monitoring namespace + Grafana sidecar from kube-prometheus-stack
+# (wave "30") on that spoke.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -17,7 +17,7 @@ spec:
     metadata:
       name: 'grafana-dashboards-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "30"
+        argocd.argoproj.io/sync-wave: "40"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

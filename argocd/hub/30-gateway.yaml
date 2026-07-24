@@ -1,9 +1,15 @@
-# Replaces argocd/hub/02-ingress-nginx.yaml — deploys the shared hub Cilium
-# Gateway (platform/gateway-api/hub-gateway.yaml) instead of the
-# ingress-nginx controller. Same sync-wave "02" the old file used.
+# Wave 30 — deploys the shared hub Cilium Gateway
+# (platform/gateway-api/hub-gateway.yaml). Needs cert-manager's CRDs/webhook
+# (20-cert-manager.yaml, wave "20") to issue the per-listener TLS certs,
+# and Cilium's Gateway API controller + the CRDs themselves
+# (10-cilium.yaml wave "10", 00-gateway-api-crds.yaml wave "00").
 #
-# include: only picks up hub-gateway.yaml — spoke-gateway.yaml is applied
-# separately by argocd/spokes/infra/10-gateway.yaml.
+# Replaces the old ingress-nginx Application at this same position in the
+# dependency chain.
+#
+# include: only picks up hub-gateway.yaml from the shared
+# platform/gateway-api/ directory — spoke-gateway.yaml is applied
+# separately by argocd/spokes/infra/30-gateway.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

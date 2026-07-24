@@ -1,12 +1,16 @@
-# cert-manager for the hub cluster. Needed so the ArgoCD server Ingress
-# (argocd/hub/00-argocd.yaml + platform/values/hub/argocd.yaml, annotation
-# cert-manager.io/cluster-issuer: internal-ca-issuer) can get a TLS cert
-# once ingress-nginx (02-ingress-nginx.yaml) is also up.
+# Wave 20 — depends on Cilium's pod networking (wave "10") and the Gateway
+# API CRDs (wave "00", since config.enableGatewayAPI: true in
+# platform/values/base/cert-manager.yaml makes the chart install
+# Gateway-API-aware RBAC/watches at startup).
+#
+# Needed so the ArgoCD server's HTTPRoute
+# (platform/gateway-routes/hub/argocd-httproute.yaml, wave "40") can get a
+# TLS cert once 30-gateway.yaml is also up.
 #
 # base + overlay: platform/values/base/cert-manager.yaml holds the config
-# shared by every tier; platform/values/hub/cert-manager.yaml is this tier's
-# override (empty today). Never reference another tier's directory directly
-# — see argocd/README.md#hub-vs-spoke-values.
+# shared by every tier; platform/values/hub/cert-manager.yaml is this
+# tier's override (empty today). Never reference another tier's directory
+# directly — see argocd/README.md#hub-vs-spoke-values.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

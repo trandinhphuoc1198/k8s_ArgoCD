@@ -1,9 +1,10 @@
-# Uses the 'grafana-community' fork repo, same as deploy.sh — this is NOT
-# the official grafana/loki chart.
+# Wave 40 — custom local chart (platform/charts/otel). Depends on the OTel
+# Operator CRDs (30-opentelemetry-operator.yaml, wave "30"):
+# OpenTelemetryCollector + Instrumentation.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: loki
+  name: otel-collectors
   namespace: argocd
 spec:
   generators:
@@ -13,24 +14,19 @@ spec:
             cluster-role: workload
   template:
     metadata:
-      name: 'loki-{{name}}'
+      name: 'otel-collectors-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "30"
+        argocd.argoproj.io/sync-wave: "40"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
       project: platform-infra
-      sources:
-        - repoURL: https://grafana-community.github.io/helm-charts
-          chart: loki
-          targetRevision: "12.0.0"
-          helm:
-            releaseName: loki
-            valueFiles:
-              - $values/platform/values/spoke/loki.yaml
-        - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
-          targetRevision: main
-          ref: values
+      source:
+        repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+        targetRevision: main
+        path: platform/charts/otel
+        helm:
+          releaseName: otel
       destination:
         server: '{{server}}'
         namespace: observability

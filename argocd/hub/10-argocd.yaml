@@ -1,3 +1,8 @@
+# Wave 10 — day-0 cluster bootstrap layer (with 10-cilium.yaml,
+# 10-aws-ccm.yaml). ArgoCD installs itself here (chicken-and-egg — this
+# manifest is applied once by hand via init.sh, same as the Helm install
+# it describes); it has no dependency on anything else in this repo, it
+# just shares the "day-0" wave with Cilium/CCM conceptually.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

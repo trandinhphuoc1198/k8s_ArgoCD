@@ -1,11 +1,15 @@
-# Cilium is already running on each spoke (installed by cloud-init at node
-# boot). This ApplicationSet takes over as the source of truth going
-# forward — same chart version and values deploy.sh already used, so the
-# first sync per spoke should be a no-op upgrade, not a CNI restart.
+# Wave 10 — day-0 bootstrap layer (with 10-aws-ccm.yaml). Cilium is
+# already running on each spoke (installed by cloud-init at node boot).
+# This ApplicationSet takes over as the source of truth going forward —
+# same chart version and values deploy.sh already used, so the first sync
+# per spoke should be a no-op upgrade, not a CNI restart.
 #
 # base + overlay: platform/values/base/cilium.yaml holds config shared by
 # every tier; platform/values/spoke/cilium.yaml is this tier's override
 # (k8sServiceHost, Hubble UI hostname). See argocd/README.md#hub-vs-spoke-values.
+#
+# Depends on 00-gateway-api-crds.yaml (wave "00") for its Gateway API
+# controller to function.
 #
 # Do NOT flip prune to true on this one: pruning Cilium = losing the CNI =
 # losing that spoke's network.
@@ -24,7 +28,7 @@ spec:
     metadata:
       name: 'cilium-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "01"
+        argocd.argoproj.io/sync-wave: "10"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

@@ -1,10 +1,13 @@
-# Custom local chart (services/fastapi-app). Last wave — depends on, per
-# spoke:
-#   - ingress-nginx (wave 10) for its Ingress
-#   - keda (wave 10) for the ScaledObject CRD
-#   - otel-collectors (wave 20) for the Instrumentation CR it annotates onto
-#   - postgresql (wave 40) for the pg-pooler-rw/ro Services it connects to
-#   - prometheus-operator-crds for the ServiceMonitor it creates
+# Wave 60 — last wave. Custom local chart (services/fastapi-app). Depends
+# on, per spoke:
+#   - the Gateway (wave "30") + its HTTPRoute's own listener, for the
+#     HTTPRoute this chart creates
+#     (services/fastapi-app/templates/httproute.yaml)
+#   - keda (wave "30") for the ScaledObject CRD
+#   - otel-collectors (wave "40") for the Instrumentation CR it annotates onto
+#   - postgresql (wave "50") for the pg-pooler-rw/ro Services it connects to
+#   - prometheus-operator-crds (installed alongside kube-prometheus-stack,
+#     wave "30") for the ServiceMonitor it creates
 #
 # NOTE: services/fastapi-app/values.yaml ships a placeholder DB password
 # ("changeme") committed in git, same caveat as the postgresql chart.
@@ -23,7 +26,7 @@ spec:
     metadata:
       name: 'fastapi-app-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "50"
+        argocd.argoproj.io/sync-wave: "60"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

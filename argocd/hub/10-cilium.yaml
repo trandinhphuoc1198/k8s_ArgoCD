@@ -1,11 +1,17 @@
-# Cilium on the hub is already running (installed by Terraform, outside
-# this repo). This Application takes over as source of truth going
-# forward — same chart version and values Terraform already used, so the
-# first sync should be a no-op upgrade, not a CNI restart.
+# Wave 10 — day-0 bootstrap layer. Cilium on the hub is already running
+# (installed by Terraform, outside this repo). This Application takes over
+# as source of truth going forward — same chart version and values
+# Terraform already used, so the first sync should be a no-op upgrade, not
+# a CNI restart.
 #
 # base + overlay: platform/values/base/cilium.yaml holds config shared by
 # every tier; platform/values/hub/cilium.yaml is this tier's override
 # (k8sServiceHost, Hubble UI hostname). See argocd/README.md#hub-vs-spoke-values.
+#
+# Depends on 00-gateway-api-crds.yaml (wave "00") for its Gateway API
+# controller to function — Cilium itself doesn't require the CRDs to
+# start, only to reconcile Gateway/HTTPRoute objects, but the CRDs are
+# guaranteed present by the time this wave runs regardless.
 #
 # Do NOT flip prune to true on this one: pruning Cilium = losing the CNI =
 # losing the hub's network (and with it, ArgoCD's own connectivity).

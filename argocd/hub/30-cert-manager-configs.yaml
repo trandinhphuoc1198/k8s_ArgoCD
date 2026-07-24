@@ -1,6 +1,7 @@
-# Applies the Issuer / Certificate / ClusterIssuer manifests
+# Wave 30 — applies the Issuer / Certificate / ClusterIssuer manifests
 # (platform/cert-manager/cert-manager-config.yaml) to the hub cluster.
-# Mirrors argocd/spokes/infra/10-cert-manager-configs.yaml.
+# Needs cert-manager's CRDs/webhook up first (20-cert-manager.yaml, wave
+# "20"). Mirrors argocd/spokes/infra/30-cert-manager-configs.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

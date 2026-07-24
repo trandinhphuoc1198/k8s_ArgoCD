@@ -1,6 +1,6 @@
-# AWS Cloud Controller Manager on the hub is already running (installed by
-# Terraform, outside this repo). This Application takes over as source of
-# truth going forward.
+# Wave 10 — day-0 bootstrap layer. AWS Cloud Controller Manager on the hub
+# is already running (installed by Terraform, outside this repo). This
+# Application takes over as source of truth going forward.
 #
 # base + overlay: platform/values/base/aws-ccm.yaml holds config shared by
 # every tier; platform/values/hub/aws-ccm.yaml is this tier's override

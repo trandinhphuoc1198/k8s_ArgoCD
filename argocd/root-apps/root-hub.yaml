@@ -2,8 +2,9 @@
 #
 # App-of-apps for everything that runs ONLY on the hub cluster (where ArgoCD
 # itself lives): ArgoCD's own Helm release, External Secrets Operator, the
-# ClusterSecretStore, and per-spoke ExternalSecrets that register spoke
-# clusters with ArgoCD.
+# ClusterSecretStore, per-spoke ExternalSecrets that register spoke
+# clusters with ArgoCD, and the Gateway API resources fronting the hub's
+# own services.
 #
 # Apply once, by hand, alongside root-spokes.yaml.
 apiVersion: argoproj.io/v1alpha1

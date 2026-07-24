@@ -1,10 +1,12 @@
-# Provides the OpenTelemetryCollector and Instrumentation CRDs that the
-# otel-collectors workload (wave 20) and fastapi-app's auto-instrumentation
-# annotation (wave 50) depend on.
+# Wave 40 — uses the 'grafana-community' fork repo, same as deploy.sh —
+# this is NOT the official grafana/loki chart. No hard dependency on
+# anything in this wave's neighbors, grouped here since it only needs
+# Cilium networking (wave "10") and the observability namespace it
+# creates itself.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: opentelemetry-operator
+  name: loki
   namespace: argocd
 spec:
   generators:
@@ -14,21 +16,21 @@ spec:
             cluster-role: workload
   template:
     metadata:
-      name: 'opentelemetry-operator-{{name}}'
+      name: 'loki-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "10"
+        argocd.argoproj.io/sync-wave: "40"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
       project: platform-infra
       sources:
-        - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
-          chart: opentelemetry-operator
-          targetRevision: "0.114.1"
+        - repoURL: https://grafana-community.github.io/helm-charts
+          chart: loki
+          targetRevision: "12.0.0"
           helm:
-            releaseName: opentelemetry-operator
+            releaseName: loki
             valueFiles:
-              - $values/platform/values/spoke/otel-operator.yaml
+              - $values/platform/values/spoke/loki.yaml
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main
           ref: values

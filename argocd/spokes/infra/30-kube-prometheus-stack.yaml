@@ -1,5 +1,5 @@
-# Needs prometheus-operator-crds and the 'ebs-csi' StorageClass from
-# aws-ebs-csi-driver (wave 01) on that spoke. fullnameOverride +
+# Wave 30 — needs prometheus-operator-crds and the 'ebs-csi' StorageClass
+# from aws-ebs-csi-driver (wave "20") on that spoke. fullnameOverride +
 # storageClassName overrides replicate the --set flags deploy.sh passes on
 # the CLI.
 apiVersion: argoproj.io/v1alpha1
@@ -17,7 +17,7 @@ spec:
     metadata:
       name: 'kube-prometheus-stack-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "10"
+        argocd.argoproj.io/sync-wave: "30"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

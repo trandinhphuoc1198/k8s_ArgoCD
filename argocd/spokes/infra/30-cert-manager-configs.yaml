@@ -1,3 +1,5 @@
+# Wave 30 — Issuer/Certificate/ClusterIssuer manifests. Needs cert-manager's
+# CRDs/webhook up first (20-cert-manager.yaml, wave "20").
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -13,7 +15,7 @@ spec:
     metadata:
       name: 'cert-manager-configs-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "10"
+        argocd.argoproj.io/sync-wave: "30"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
