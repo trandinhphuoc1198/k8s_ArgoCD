@@ -43,6 +43,8 @@ spec:
       namespace: monitoring
     - server: "*"
       namespace: cert-manager
+    - server: "*"
+      namespace: cilium-secrets
 
   # These charts legitimately install CRDs, StorageClasses, ClusterRoles,
   # ClusterRoleBindings, the CSIDriver object, etc. — kept wide open here,
