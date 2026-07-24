@@ -89,17 +89,6 @@ hubble:
       enabled: false
       trustCRDsExist: true
     
-    # ── Persistent flow export ──────────────────────────────────────────────
-    export:
-    fileMaxSizeMb: 10
-    fileMaxBackups: 5
-    static:
-      enabled: true
-      filePath: /var/run/cilium/hubble/events.log
-      allowList:
-        - '{"verdict":["DROPPED","ERROR"]}'
-        - '{"verdict":["FORWARDED"], "event_type":[{"type":128}]}'
-
   relay:
     enabled: true
     rollOutPods: true
