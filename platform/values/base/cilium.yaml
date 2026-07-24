@@ -29,11 +29,6 @@
 # kubernetes.io/cluster/<name> tag CCM discovers the route table by.
 routingMode: native
 
-# Must match pod_cidr in every live/*/envs/*/terraform.tfvars. Tells
-# Cilium which destination IPs are "in-cluster" (route natively, never
-# masquerade) vs external (masquerade via bpf.masquerade below).
-ipv4NativeRoutingCIDR: "192.168.0.0/16"
-
 ipam:
   mode: kubernetes
 

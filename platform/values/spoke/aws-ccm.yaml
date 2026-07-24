@@ -4,4 +4,7 @@
 # argocd/spokes/infra/00-aws-ccm.yaml. Empty today — every spoke runs CCM
 # identically to the hub. Add keys here if that ever changes; do not edit
 # base/aws-ccm.yaml to special-case spokes.
-{}
+args:
+  # Required for the route controller to start; must match pod_cidr in
+  # every live/*/envs/*/terraform.tfvars.
+  - --cluster-cidr=192.169.0.0/16

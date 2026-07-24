@@ -8,4 +8,7 @@
 # Terraform installed CCM on the hub originally — verify `helm get values
 # aws-cloud-controller-manager -n kube-system` matches base + this file
 # before enabling automated sync.
-{}
+args:
+  # Required for the route controller to start; must match pod_cidr in
+  # every live/*/envs/*/terraform.tfvars.
+  - --cluster-cidr=192.168.0.0/16

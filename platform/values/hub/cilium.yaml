@@ -6,9 +6,12 @@
 # Before enabling automated sync, diff `helm get values cilium -n
 # kube-system` on the live hub against base + this file merged.
 #
-# TODO: replace with the hub's own control-plane private IP — this is NOT
-# the spoke's value (10.0.1.10). Check what Terraform passed as
-# k8sServiceHost when it installed Cilium on the hub.
+
+# Must match pod_cidr in every live/*/envs/*/terraform.tfvars. Tells
+# Cilium which destination IPs are "in-cluster" (route natively, never
+# masquerade) vs external (masquerade via bpf.masquerade below).
+ipv4NativeRoutingCIDR: "192.168.0.0/16"
+
 k8sServiceHost: "10.0.11.10"
 k8sServicePort: "6443"
 

@@ -20,9 +20,6 @@ args:
   # DescribeRouteTables permission master_ccm_policy already has — see
   # modules/ec2/main.tf.
   - --configure-cloud-routes=true
-  # Required for the route controller to start; must match pod_cidr in
-  # every live/*/envs/*/terraform.tfvars.
-  - --cluster-cidr=192.168.0.0/16
 
 image:
   repository: docker.io/gintaku98/aws-cloud-controller-manager

@@ -5,6 +5,12 @@
 # used on fresh spoke nodes, so the first ArgoCD sync per spoke should be a
 # no-op upgrade, not a CNI restart.
 #
+
+# Must match pod_cidr in every live/*/envs/*/terraform.tfvars. Tells
+# Cilium which destination IPs are "in-cluster" (route natively, never
+# masquerade) vs external (masquerade via bpf.masquerade below).
+ipv4NativeRoutingCIDR: "192.169.0.0/16"
+
 # k8sServiceHost/k8sServicePort are filled in at node-bootstrap time by
 # cloud-init-control-plane.sh (--set flags) for the very first install; the
 # value below is what's committed as the steady-state default once ArgoCD
