@@ -18,5 +18,5 @@ spec:
     - prometheus.phuoctd6.shop
   rules:
     - backendRefs:
-        - name: monitoring-kube-prometheus-prometheus
+        - name: monitoring-prometheus
           port: 9090

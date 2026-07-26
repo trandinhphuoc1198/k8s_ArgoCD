@@ -22,5 +22,5 @@ spec:
     - grafana.phuoctd6.shop
   rules:
     - backendRefs:
-        - name: monitoring-grafana
+        - name: kube-prometheus-stack-grafana
           port: 80

@@ -17,5 +17,5 @@ spec:
     - alertmanager.phuoctd6.shop
   rules:
     - backendRefs:
-        - name: monitoring-kube-prometheus-alertmanager
+        - name: alertmanager-operated
           port: 9093
