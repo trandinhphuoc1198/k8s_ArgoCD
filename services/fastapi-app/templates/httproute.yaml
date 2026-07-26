@@ -9,7 +9,7 @@ spec:
   parentRefs:
     - group: gateway.networking.k8s.io	
       kind: Gateway
-    - name: {{ .Values.httpRoute.gatewayName }}
+      name: {{ .Values.httpRoute.gatewayName }}
       namespace: {{ .Values.httpRoute.gatewayNamespace }}
       sectionName: {{ .Values.httpRoute.listenerName }}
   hostnames:
@@ -18,6 +18,6 @@ spec:
     - backendRefs:
         - group: ''	
           kind: Service
-        - name: {{ include "fastapi-app.fullname" . }}
+          name: {{ include "fastapi-app.fullname" . }}
           port: {{ .Values.service.port }}
 {{- end }}
