@@ -6,8 +6,8 @@ storageClasses:
       type: gp3
       encrypted: "true"
 
+nodeAllocatableUpdatePeriodSeconds: 10 
 controller:
-  nodeAllocatableUpdatePeriodSeconds: 10 
   replicaCount: 2
   topologySpreadConstraints:
     - maxSkew: 1
