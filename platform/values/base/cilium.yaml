@@ -71,6 +71,10 @@ gatewayAPI:
   enabled: true
   enableAlpn: true
   enableProxyProtocol: false
+  gatewayClass:
+    create: "false"
+
+
 
 hubble:
   enabled: true
