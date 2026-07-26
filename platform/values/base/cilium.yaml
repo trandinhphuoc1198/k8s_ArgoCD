@@ -29,6 +29,8 @@
 # kubernetes.io/cluster/<name> tag CCM discovers the route table by.
 routingMode: native
 
+ipv4NativeRoutingCIDR: "100.64.0.0/10"
+
 ipam:
   mode: kubernetes
 
