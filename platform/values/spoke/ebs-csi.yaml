@@ -7,6 +7,7 @@ storageClasses:
       encrypted: "true"
 
 controller:
+  nodeAllocatableUpdatePeriodSeconds: 10 
   replicaCount: 2
   topologySpreadConstraints:
     - maxSkew: 1
