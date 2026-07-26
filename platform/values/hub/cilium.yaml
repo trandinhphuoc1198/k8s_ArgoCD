@@ -10,7 +10,7 @@
 # Must match pod_cidr in every live/*/envs/*/terraform.tfvars. Tells
 # Cilium which destination IPs are "in-cluster" (route natively, never
 # masquerade) vs external (masquerade via bpf.masquerade below).
-ipv4NativeRoutingCIDR: "192.168.0.0/16"
+ipv4NativeRoutingCIDR: "100.64.0.0/16"
 
 k8sServiceHost: "10.0.11.10"
 k8sServicePort: "6443"
