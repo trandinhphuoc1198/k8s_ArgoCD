@@ -7,6 +7,8 @@ metadata:
     {{- include "fastapi-app.labels" . | nindent 4 }}
 spec:
   parentRefs:
+    - group: gateway.networking.k8s.io	
+      kind: Gateway
     - name: {{ .Values.httpRoute.gatewayName }}
       namespace: {{ .Values.httpRoute.gatewayNamespace }}
       sectionName: {{ .Values.httpRoute.listenerName }}
@@ -14,6 +16,8 @@ spec:
     - {{ .Values.httpRoute.hostname | quote }}
   rules:
     - backendRefs:
+        - group: ''	
+          kind: Service
         - name: {{ include "fastapi-app.fullname" . }}
           port: {{ .Values.service.port }}
 {{- end }}
