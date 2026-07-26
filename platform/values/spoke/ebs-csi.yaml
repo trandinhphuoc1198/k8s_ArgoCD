@@ -6,7 +6,7 @@ storageClasses:
       type: gp3
       encrypted: "true"
 
-nodeAllocatableUpdatePeriodSeconds: 10 
+nodeAllocatableUpdatePeriodSeconds: 60
 controller:
   replicaCount: 2
   topologySpreadConstraints:
