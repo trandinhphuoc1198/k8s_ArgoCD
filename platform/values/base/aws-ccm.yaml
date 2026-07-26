@@ -8,18 +8,7 @@
 # ever need to diverge (different region, different node labels), add keys
 # to the relevant tier file — do not special-case a tier here.
 
-args:
-  - --v=6
-  - --cloud-provider=aws
-  # Native routing (see platform/values/base/cilium.yaml) needs AWS VPC
-  # route tables kept in sync with each node's pod CIDR — this is exactly
-  # what CCM's route controller does (watches node.spec.podCIDR, creates/
-  # deletes the matching VPC route). It discovers the target route table
-  # via the kubernetes.io/cluster/<cluster-name> tag applied in
-  # modules/vpc, and needs ec2:CreateRoute/DeleteRoute on top of the
-  # DescribeRouteTables permission master_ccm_policy already has — see
-  # modules/ec2/main.tf.
-  - --configure-cloud-routes=true
+
 
 image:
   repository: docker.io/gintaku98/aws-cloud-controller-manager
