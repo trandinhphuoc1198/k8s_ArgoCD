@@ -12,12 +12,17 @@
 # workload); "cluster-name" is what argocd-register-spoke.yml now queries
 # directly to confirm a specific spoke registered successfully.
 #
-# "cluster-mesh-id" is a static, manually-assigned label (NOT sourced from
-# the AWS secret) — Cilium Cluster Mesh's numeric cluster id (1-255, must
-# be unique across every meshed cluster). Hub is hardcoded to "1" in
-# platform/values/hub/cilium.yaml; spokes are assigned here, one at a time,
-# as they're onboarded. Track the registry of taken ids in
-# bootstrap/README.md so two spokes never collide.
+# "cluster-mesh-id" and "cluster-mesh-ip" are static, manually-assigned
+# labels (NOT sourced from the AWS secret) — Cilium Cluster Mesh's numeric
+# cluster id (1-255, unique across every meshed cluster) and the stable
+# control-plane node IP this spoke exposes clustermesh-apiserver's NodePort
+# on (same address used as this spoke's k8sServiceHost). Both are read by
+# .github/workflows/clustermesh-sync.yml, which regenerates
+# platform/values/base/cilium.yaml's clustermesh.config.clusters list from
+# every argocd/clusters/*.yaml file automatically — this is the ONLY
+# manual edit needed when onboarding a new spoke into the mesh; everything
+# downstream of it (the peer list, and this spoke's own cluster.name/id in
+# argocd/spokes/infra/10-cilium.yaml) is templated/generated, not hand-written.
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
@@ -37,6 +42,7 @@ spec:
           cluster-name: "{{ .name }}"
           cluster-role: "{{ .role }}"
           cluster-mesh-id: "2"
+          cluster-mesh-ip: "10.1.11.10"
       data:
         name: "{{ .name }}"
         server: "{{ .server }}"
