@@ -33,8 +33,6 @@ spec:
         selector:
           matchLabels:
             cluster-role: workload
-        # values:
-        #   clusterMeshId: '{{metadata.labels.cluster-mesh-id}}'
   template:
     metadata:
       name: 'cilium-{{name}}'
@@ -53,10 +51,11 @@ spec:
             valueFiles:
               - $values/platform/values/base/cilium.yaml
               - $values/platform/values/spoke/cilium.yaml
-            valuesObject:
-              cluster:
-                name: '{{name}}'
-                id: '{{clusterMeshId}}'
+            parameters:
+              - name: cluster.name
+                value: '{{name}}'
+              - name: cluster.id
+                value: '{{metadata.labels.cluster-mesh-id}}'
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main
           ref: values
