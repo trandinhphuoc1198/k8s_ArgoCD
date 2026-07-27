@@ -14,6 +14,18 @@
 k8sServiceHost: "10.0.11.10"
 k8sServicePort: "6443"
 
+# ── Cluster Mesh identity ────────────────────────────────────────────────
+# Every meshed cluster needs a globally-unique name + numeric id (1-255).
+# Hub is hardcoded here since there's only ever one hub. Spokes get theirs
+# templated per-cluster in argocd/spokes/infra/10-cilium.yaml from the
+# cluster-mesh-id label set in argocd/clusters/<name>.yaml — see
+# bootstrap/README.md for the id registry (which ids are taken).
+#
+# id "1" is reserved for hub; spokes start at "2".
+cluster:
+  name: hub
+  id: "1"
+
 # Hubble UI's hostname now lives on the hub Gateway
 # (platform/gateway-api/hub-gateway.yaml, listener "hubble-https",
 # hostname hubble-hub.phuoctd6.shop) instead of here — base/cilium.yaml

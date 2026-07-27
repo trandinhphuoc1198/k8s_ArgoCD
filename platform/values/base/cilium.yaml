@@ -5,11 +5,15 @@
 # Everything here is intentionally identical regardless of which cluster
 # Cilium runs on: routing mode, kube-proxy replacement, masquerade,
 # encryption, Hubble feature toggles, Gateway API, resource sizing,
-# tolerations.
+# tolerations, and now Cluster Mesh's apiserver/TLS config (cluster.name /
+# cluster.id are the only per-cluster mesh fields — those live in the tier
+# overlay, see platform/values/hub/cilium.yaml and
+# argocd/spokes/infra/10-cilium.yaml's valuesObject).
 #
 # Only truly per-cluster values live in the tier overlay:
 #   - k8sServiceHost / k8sServicePort  (that cluster's own API server)
 #   - hubble.ui.ingress.hosts          (avoids a DNS collision between tiers)
+#   - cluster.name / cluster.id        (Cluster Mesh identity)
 #
 # Each tier layers platform/values/<tier>/cilium.yaml on top of this file
 # via a second helm.valueFiles entry, tier file last so it wins.
@@ -73,8 +77,37 @@ gatewayAPI:
   enableProxyProtocol: false
   gatewayClass:
     create: "false"
-
-
+    
+# ── Cluster Mesh ───────────────────────────────────────────────────────────
+# useAPIServer: true deploys clustermesh-apiserver (own embedded etcd) in
+# every meshed cluster — no external kvstore needed, works with the
+# identityAllocationMode: crd already set below.
+#
+# NodePort exposure: chosen because AWS-side flat routing between cluster
+# VPCs (peering/TGW) already makes node IPs reachable cluster-to-cluster,
+# so no per-cluster LoadBalancer/NLB is needed for this. Fixed port so
+# every cluster's remote-endpoint config is predictable without querying
+# each cluster's live Service.
+#
+# TLS: cert-manager issues all four clustermesh certs (admin/client/
+# server/relay) from clustermesh-ca-issuer (platform/clustermesh/,
+# wave "25" — a shared root distributed to every cluster, NOT
+# internal-ca-issuer, which is a per-cluster self-signed root and cannot
+# be a shared trust anchor). Field names below are for the 1.20.x chart —
+# re-check against `helm show values cilium/cilium --version 1.20.0-rc.1`
+# if you land on a different chart version.
+clustermesh:
+  useAPIServer: true
+  apiserver:
+    service:
+      type: NodePort
+      nodePort: 32379
+    tls:
+      authMode: certificate
+      certManagerIssuerRef:
+        group: cert-manager.io
+        kind: ClusterIssuer
+        name: clustermesh-ca-issuer
 
 hubble:
   enabled: true

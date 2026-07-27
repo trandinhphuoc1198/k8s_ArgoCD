@@ -1,0 +1,38 @@
+# Wave 25 — shared Cluster Mesh mTLS root, pulled from AWS Secrets Manager
+# via a per-cluster SecretStore (platform/clustermesh/secret-store.yaml —
+# deliberately NOT the hub-only "argocd-clusters-store" ClusterSecretStore
+# spoke registration uses; see that file's header comment). Needs
+# External Secrets' CRDs/webhook (20-external-secrets.yaml, wave "20").
+#
+# clustermesh-apiserver's Certificate (created by the Cilium chart at wave
+# "10" once clustermesh.apiserver.tls.certManagerIssuerRef is set in
+# platform/values/base/cilium.yaml) will sit Pending until this Application
+# syncs, then self-heal — expected, not a bug, same cross-wave-dependency
+# pattern as e.g. Grafana dashboard ConfigMaps waiting on the sidecar.
+#
+# See platform/clustermesh/ca-issuer.yaml for why this is a SEPARATE root
+# from internal-ca-issuer (platform/cert-manager/), not a reuse of it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: clustermesh-ca
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "25"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-hub
+  source:
+    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+    targetRevision: main
+    path: platform/clustermesh
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

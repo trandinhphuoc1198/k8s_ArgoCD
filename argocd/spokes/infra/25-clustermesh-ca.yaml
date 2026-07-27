@@ -1,0 +1,39 @@
+# Wave 25 — spoke counterpart of argocd/hub/25-clustermesh-ca.yaml. Same
+# CA, same AWS secret, fanned to every spoke so every cluster in the mesh
+# trusts an identical root. Needs cert-manager's CRDs/webhook
+# (20-cert-manager.yaml, wave "20") and the NEW spoke External Secrets
+# install (20-external-secrets.yaml, wave "20") — ESO didn't previously
+# run on spokes at all, only the hub.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: clustermesh-ca
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            cluster-role: workload
+  template:
+    metadata:
+      name: 'clustermesh-ca-{{name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "25"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform-infra
+      source:
+        repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+        targetRevision: main
+        path: platform/clustermesh
+      destination:
+        server: '{{server}}'
+        namespace: cert-manager
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

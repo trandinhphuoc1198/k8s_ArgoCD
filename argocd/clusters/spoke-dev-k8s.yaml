@@ -11,6 +11,13 @@
 # cluster generator selector matches on (spokes/** selects cluster-role:
 # workload); "cluster-name" is what argocd-register-spoke.yml now queries
 # directly to confirm a specific spoke registered successfully.
+#
+# "cluster-mesh-id" is a static, manually-assigned label (NOT sourced from
+# the AWS secret) — Cilium Cluster Mesh's numeric cluster id (1-255, must
+# be unique across every meshed cluster). Hub is hardcoded to "1" in
+# platform/values/hub/cilium.yaml; spokes are assigned here, one at a time,
+# as they're onboarded. Track the registry of taken ids in
+# bootstrap/README.md so two spokes never collide.
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
@@ -29,6 +36,7 @@ spec:
           argocd.argoproj.io/secret-type: cluster
           cluster-name: "{{ .name }}"
           cluster-role: "{{ .role }}"
+          cluster-mesh-id: "2"
       data:
         name: "{{ .name }}"
         server: "{{ .server }}"
