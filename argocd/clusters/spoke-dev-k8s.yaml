@@ -41,7 +41,7 @@ spec:
           argocd.argoproj.io/secret-type: cluster
           cluster-name: "{{ .name }}"
           cluster-role: "{{ .role }}"
-          cluster-mesh-id: "2"
+          cluster-mesh-id: 2
           cluster-mesh-ip: "10.1.11.10"
       data:
         name: "{{ .name }}"
