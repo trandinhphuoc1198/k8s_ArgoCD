@@ -34,7 +34,7 @@ spec:
           matchLabels:
             cluster-role: workload
         values:
-          clusterMeshId: '{{metadata.labels.cluster-mesh-id}}'
+          clusterMeshId: {{metadata.labels.cluster-mesh-id}}
   template:
     metadata:
       name: 'cilium-{{name}}'
@@ -56,7 +56,7 @@ spec:
             valuesObject:
               cluster:
                 name: '{{name}}'
-                id: '{{values.clusterMeshId}}'
+                id: {{values.clusterMeshId}}
         - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
           targetRevision: main
           ref: values
