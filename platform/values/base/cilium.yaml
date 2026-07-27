@@ -145,7 +145,7 @@ clustermesh:
       type: NodePort
       nodePort: 32379
     tls:
-      authMode: certificate
+      authMode: cluster
       certManagerIssuerRef:
         group: cert-manager.io
         kind: ClusterIssuer
