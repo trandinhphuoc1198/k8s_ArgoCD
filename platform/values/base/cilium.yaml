@@ -145,12 +145,14 @@ clustermesh:
       type: NodePort
       nodePort: 32379
     tls:
-      authMode: cluster
-      method: certmanager
-      certManagerIssuerRef:
-        group: cert-manager.io
-        kind: ClusterIssuer
-        name: clustermesh-ca-issuer
+      auto:
+        enabled: true
+        authMode: cluster
+        method: certmanager
+        certManagerIssuerRef:
+          group: cert-manager.io
+          kind: ClusterIssuer
+          name: clustermesh-ca-issuer
 
 hubble:
   enabled: true
