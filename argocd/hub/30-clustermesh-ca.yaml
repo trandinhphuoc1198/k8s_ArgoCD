@@ -29,7 +29,7 @@ metadata:
   name: clustermesh-ca
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "25"
+    argocd.argoproj.io/sync-wave: "30"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

@@ -22,7 +22,7 @@ spec:
     metadata:
       name: 'clustermesh-ca-{{name}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "25"
+        argocd.argoproj.io/sync-wave: "30"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
@@ -43,3 +43,9 @@ spec:
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
+        retry:
+          limit: 15
+          backoff:
+            duration: 15s
+            factor: 2
+            maxDuration: 5m
