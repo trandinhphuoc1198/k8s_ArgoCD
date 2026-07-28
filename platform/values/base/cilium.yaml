@@ -237,3 +237,5 @@ identityAllocationMode: crd
 encryption:
   enabled: true
   type: wireguard
+
+MTU: 8500
