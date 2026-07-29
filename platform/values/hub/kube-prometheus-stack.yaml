@@ -5,16 +5,19 @@
 # Prometheus in Agent mode (platform/values/spoke/kube-prometheus-stack.yaml)
 # and remote_write into this one.
 #
-# Deployed with fullnameOverride: "monitoring-hub" (set in
-# argocd/hub/40-kube-prometheus-stack.yaml's valuesObject) — DELIBERATELY
-# different from spoke's fullnameOverride "monitoring". Every spoke also
-# runs its own local Prometheus (Agent mode) whose Operator-created Service
-# would otherwise be named identically to this one. If both were named
-# "monitoring-prometheus" and this one were marked Cilium-global, a global
-# service lookup from a spoke could silently load-balance between its own
-# broken local agent (no query API) and this real one. Distinct names
-# remove that ambiguity entirely — every consumer (KEDA, spoke's OTel
-# remote-write exporter) points at "monitoring-hub-prometheus" explicitly.
+# fullnameOverride is set right here (not in the Application's
+# valuesObject) — it's a static string with no ArgoCD-level templating
+# need, so it belongs in the values file like everything else that
+# defines this release's identity. DELIBERATELY "monitoring-hub", not
+# "monitoring" — every spoke also runs its own local Prometheus (Agent
+# mode) whose Operator-created Service would otherwise be named
+# identically to this one. If both were named "monitoring-prometheus" and
+# this one were marked Cilium-global, a global service lookup from a
+# spoke could silently load-balance between its own broken local agent
+# (no query API) and this real one. Distinct names remove that ambiguity
+# entirely — every consumer (KEDA, spoke's OTel remote-write exporter)
+# points at "monitoring-hub-prometheus" explicitly.
+fullnameOverride: monitoring-hub
 
 grafana:
   adminPassword: kagura12

@@ -2,14 +2,19 @@
 # fleet's single central Prometheus/Grafana/Alertmanager. Needs the
 # 'ebs-csi' StorageClass (20-aws-ebs-csi-driver.yaml, wave "20").
 #
-# fullnameOverride is DELIBERATELY "monitoring-hub", not "monitoring" —
-# see platform/values/hub/kube-prometheus-stack.yaml's header comment for
-# why (avoids a Cilium-global naming collision with every spoke's own
-# local Prometheus Agent, which is named "monitoring-prometheus").
+# fullnameOverride and storageClassName all live in
+# platform/values/hub/kube-prometheus-stack.yaml itself now, not a
+# valuesObject override here — they're static strings with no ArgoCD-level
+# templating need, so there's no reason to split them across two files.
+# (valuesObject only earns its keep for things that genuinely need
+# ArgoCD's own Go-template syntax, like '{{name}}' in the spoke
+# ApplicationSet's helm.parameters — see
+# argocd/spokes/infra/30-kube-prometheus-stack.yaml.)
 #
-# remote_write receiver is enabled here so every spoke's Prometheus Agent
-# (argocd/spokes/infra/30-kube-prometheus-stack.yaml) can push samples in
-# over the Cluster Mesh global "monitoring-hub-prometheus" Service.
+# remote_write receiver is enabled in that values file so every spoke's
+# Prometheus Agent (argocd/spokes/infra/30-kube-prometheus-stack.yaml) can
+# push samples in over the Cluster Mesh global "monitoring-hub-prometheus"
+# Service.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -29,17 +34,6 @@ spec:
         releaseName: kube-prometheus-stack
         valueFiles:
           - $values/platform/values/hub/kube-prometheus-stack.yaml
-        valuesObject:
-          fullnameOverride: monitoring-hub
-          grafana:
-            persistence:
-              storageClassName: ebs-csi
-          prometheus:
-            prometheusSpec:
-              storageSpec:
-                volumeClaimTemplate:
-                  spec:
-                    storageClassName: ebs-csi
     - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
       targetRevision: main
       ref: values

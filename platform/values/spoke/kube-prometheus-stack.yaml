@@ -16,6 +16,13 @@
 # instead. That is a real new runtime dependency: spoke autoscaling now
 # needs hub to be reachable over Cluster Mesh. See the values files for
 # those charts.
+#
+# fullnameOverride is set here (not in the ApplicationSet's valuesObject)
+# — same reasoning as the hub file: it's a static string, no ArgoCD-level
+# templating need. Note this is "monitoring" (unchanged from before the
+# re-split) while hub's is "monitoring-hub" — see hub's file for why they
+# must differ.
+fullnameOverride: monitoring
 
 prometheus:
   # Chart-level switch that puts the generated Prometheus CR into

@@ -3,9 +3,19 @@
 #
 # UPDATED as of the hub/spoke observability re-split: this Prometheus is
 # now Agent mode only (platform/values/spoke/kube-prometheus-stack.yaml —
-# no local Grafana/Alertmanager/query API, remote_writes to hub). The old
-# grafana.persistence.storageClassName override is removed since Grafana
-# is disabled here entirely now.
+# no local Grafana/Alertmanager/query API, remote_writes to hub).
+# fullnameOverride and storageClassName both live in that values file now
+# — they're static strings with no ArgoCD-level templating need, so
+# there's no reason to also carry a valuesObject override here.
+#
+# helm.parameters (below) is different: it sets externalLabels.cluster
+# per spoke using '{{name}}', ArgoCD's own Go-template syntax — resolved
+# by the ApplicationSet controller before Helm ever sees it, so it CANNOT
+# live in a plain values file (Helm would just see the literal string
+# "{{name}}"). Same mechanism argocd/spokes/infra/10-cilium.yaml already
+# uses for Cluster Mesh identity. Without this, every spoke's samples land
+# in hub's single Prometheus with no way to tell them apart once there's
+# more than one spoke.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -34,14 +44,6 @@ spec:
             releaseName: kube-prometheus-stack
             valueFiles:
               - $values/platform/values/spoke/kube-prometheus-stack.yaml
-            valuesObject:
-              fullnameOverride: monitoring
-              prometheus:
-                prometheusSpec:
-                  storageSpec:
-                    volumeClaimTemplate:
-                      spec:
-                        storageClassName: ebs-csi
             parameters:
               - name: prometheus.prometheusSpec.externalLabels.cluster
                 value: '{{name}}'
