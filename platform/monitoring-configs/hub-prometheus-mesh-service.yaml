@@ -1,0 +1,44 @@
+# platform/monitoring-configs/hub-prometheus-mesh-service.yaml
+#
+# SPOKE ONLY — placeholder Service so Cilium Cluster Mesh has a local
+# object to merge hub's real Prometheus endpoints into.
+#
+# Cluster Mesh does NOT create Service objects on the importing cluster —
+# it only appends remote endpoints to an existing local Service of the
+# SAME name+namespace that is also annotated global+shared. Hub's real
+# Service (platform/values/hub/kube-prometheus-stack.yaml ->
+# prometheus.service.annotations) is already marked global+shared and
+# named "monitoring-hub-prometheus" — but nothing on the spoke side
+# creates a matching Service, so that hostname currently fails to
+# resolve from any spoke. This fixes that, using the same pattern
+# platform/charts/otel/templates/global-service.yaml already uses for
+# the OTel aggregator.
+#
+# ClusterIP: None + no matching selector = zero LOCAL endpoints on spoke
+# (correct — there is no local Prometheus behind this name). Cilium then
+# fills in hub's real pod IPs via the mesh.
+#
+# Consumers that depend on this resolving:
+#   - platform/values/spoke/kube-prometheus-stack.yaml (remoteWrite.url)
+#   - services/fastapi-app/values.yaml (keda.prometheus.serverAddress)
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring-hub-prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/component: hub-prometheus-mesh-placeholder
+  annotations:
+    # ── Cilium Cluster Mesh ──────────────────────────────────────────────
+    service.cilium.io/global: "true"
+    service.cilium.io/shared: "true"
+spec:
+  clusterIP: None
+  # No selector on purpose — this Service has no local backend on spoke.
+  # Cilium Cluster Mesh injects hub's real endpoints for the
+  # identically-named+namespaced global Service there.
+  ports:
+    - name: http
+      port: 9090
+      protocol: TCP
