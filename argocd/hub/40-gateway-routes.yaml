@@ -1,6 +1,3 @@
-# Wave 40 — deploys the ArgoCD-server and Hubble-UI HTTPRoutes
-# (platform/gateway-routes/hub/). Needs the hub Gateway's listeners + TLS
-# certs to exist first (30-gateway.yaml, wave "30").
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -16,6 +13,8 @@ spec:
     repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
     targetRevision: main
     path: platform/gateway-routes/hub
+    directory:
+      exclude: "{grafana,prometheus,alertmanager}-httproute.yaml"
   destination:
     server: https://kubernetes.default.svc
     namespace: gateway-system
