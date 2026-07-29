@@ -95,6 +95,17 @@ spec:
   # The operator formats and injects these as OTEL_RESOURCE_ATTRIBUTES safely —
   # no risk of the multi-line space bug that affects manual env var declarations.
   # resourceAttributes must be a plain key:value map — NOT a list of objects.
+  #
+  # k8s.cluster.name is merged in here (rather than added as a second,
+  # separate resource block) so it shows up on every SDK-emitted span AND
+  # log from the moment they're created — see .Values.global.clusterName's
+  # comment in values.yaml for why this matters once there's more than one
+  # spoke. Only merged in when clusterName is actually set, so this stays a
+  # no-op on today's single-spoke setup.
   resource:
     resourceAttributes:
-      {{- toYaml .Values.instrumentation.resourceAttributes | nindent 6 }}
+      {{- $attrs := .Values.instrumentation.resourceAttributes }}
+      {{- if .Values.global.clusterName }}
+      {{- $attrs = merge (dict "k8s.cluster.name" .Values.global.clusterName) $attrs }}
+      {{- end }}
+      {{- toYaml $attrs | nindent 6 }}

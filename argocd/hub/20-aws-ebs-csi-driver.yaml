@@ -13,7 +13,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: platform-hub
+  project: platform-hub-observability
   sources:
     - repoURL: https://kubernetes-sigs.github.io/aws-ebs-csi-driver
       chart: aws-ebs-csi-driver
@@ -21,7 +21,7 @@ spec:
       helm:
         releaseName: aws-ebs-csi-driver
         valueFiles:
-          - $values/platform/values/hub/ebs-csi.yaml
+          - $values/platform/values/base/ebs-csi.yaml
     - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
       targetRevision: main
       ref: values

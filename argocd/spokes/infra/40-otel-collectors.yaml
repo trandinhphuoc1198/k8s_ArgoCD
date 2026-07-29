@@ -2,11 +2,17 @@
 # Operator CRDs (30-opentelemetry-operator.yaml, wave "30"):
 # OpenTelemetryCollector + Instrumentation.
 #
-# UPDATED as of the hub/spoke observability re-split: now applies the
-# spoke overlay (platform/values/spoke/otel.yaml) — DaemonSet only, no
-# local aggregator, forwards to hub over Cluster Mesh. valueFiles path is
-# relative from the chart directory (platform/charts/otel) to
-# platform/values/spoke/otel.yaml.
+# UPDATED as of the hub/spoke observability re-split: applies the spoke
+# overlay (platform/values/spoke/otel.yaml) — DaemonSet only, no local
+# aggregator, forwards to hub over Cluster Mesh. Uses the same two-source
+# "$values ref" pattern every other tiered Application/ApplicationSet in
+# this repo uses (cilium, ebs-csi, kube-prometheus-stack, ...) instead of
+# an ad-hoc relative valueFiles path.
+#
+# helm.parameters sets global.clusterName per spoke, same '{{name}}'
+# templating 10-cilium.yaml already uses for Cluster Mesh identity — so
+# every span/log/metric this spoke forwards carries k8s.cluster.name once
+# there's more than one spoke pushing into hub's shared Tempo/Loki.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -27,14 +33,20 @@ spec:
         - resources-finalizer.argocd.argoproj.io
     spec:
       project: platform-infra
-      source:
-        repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
-        targetRevision: main
-        path: platform/charts/otel
-        helm:
-          releaseName: otel
-          valueFiles:
-            - ../../values/spoke/otel.yaml
+      sources:
+        - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+          targetRevision: main
+          path: platform/charts/otel
+          helm:
+            releaseName: otel
+            valueFiles:
+              - $values/platform/values/spoke/otel.yaml
+            parameters:
+              - name: global.clusterName
+                value: '{{name}}'
+        - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+          targetRevision: main
+          ref: values
       destination:
         server: '{{server}}'
         namespace: observability

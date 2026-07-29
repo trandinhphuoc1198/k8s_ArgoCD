@@ -16,7 +16,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: platform-hub
+  project: platform-hub-observability
   sources:
     - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
       chart: opentelemetry-operator
@@ -24,7 +24,7 @@ spec:
       helm:
         releaseName: opentelemetry-operator
         valueFiles:
-          - $values/platform/values/spoke/otel-operator.yaml
+          - $values/platform/values/base/otel-operator.yaml
     - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
       targetRevision: main
       ref: values

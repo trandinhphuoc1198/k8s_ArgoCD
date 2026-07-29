@@ -11,6 +11,14 @@ global:
   # Namespace where kube-prometheus-stack Grafana is running.
   # Used by Tempo/Loki datasource ConfigMaps so Grafana's sidecar can discover them.
   monitoringNamespace: monitoring
+  # Which cluster this chart is deployed to. Empty by default (single-spoke
+  # today has nothing to disambiguate). Set per-spoke via ApplicationSet
+  # parameter (argocd/spokes/infra/40-otel-collectors.yaml passes
+  # '{{name}}', the same cluster-name templating 10-cilium.yaml already
+  # uses for Cluster Mesh identity) once there's more than one spoke —
+  # otherwise every spoke's traces/logs/metrics land in hub's single
+  # Tempo/Loki/Prometheus with no way to tell which cluster they came from.
+  clusterName: ""
 
 # ---------------------------------------------------------------------------
 # Cross-cluster (Cilium Cluster Mesh) — see templates/global-service.yaml

@@ -280,6 +280,16 @@ spec:
           - key: collector.type
             value: daemonset
             action: insert
+          {{- if .Values.global.clusterName }}
+          # Multi-spoke disambiguation — see .Values.global.clusterName's
+          # comment in values.yaml. Covers filelog-sourced logs (container
+          # stdout), which never pass through the Instrumentation CR's
+          # OTEL_RESOURCE_ATTRIBUTES and so wouldn't otherwise carry a
+          # cluster identifier at all.
+          - key: k8s.cluster.name
+            value: {{ .Values.global.clusterName | quote }}
+            action: insert
+          {{- end }}
 
       # Drop health-check and metrics-scrape noise from traces and logs.
       filter/health:

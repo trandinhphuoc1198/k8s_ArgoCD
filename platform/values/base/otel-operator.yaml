@@ -1,16 +1,17 @@
-# platform/values/spoke/otel-operator.yaml
+# platform/values/base/otel-operator.yaml
 # ─────────────────────────────────────────────────────────────────────────────
 # Values for: open-telemetry/opentelemetry-operator  (chart >= 0.64.2)
 #
-# Install:
-#   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-#   helm repo update
-#   helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
-#     --namespace observability \
-#     --create-namespace \
-#     --version 0.64.2 \
-#     --values platform/values/spoke/otel-operator.yaml \
-#     --wait
+# Shared across every deployment tier. Consumed by BOTH:
+#   - argocd/hub/20-opentelemetry-operator.yaml            (hub)
+#   - argocd/spokes/infra/30-opentelemetry-operator.yaml   (every spoke)
+#
+# PROMOTED here from platform/values/spoke/otel-operator.yaml as of the
+# hub/spoke observability re-split — hub now also runs the OTel aggregator
+# (an OpenTelemetryCollector CR), so hub needs this Operator installed too,
+# with identical config. Per this repo's base+tier convention
+# (argocd/README.md#hub-vs-spoke-values), tier-identical config belongs
+# here, not duplicated per tier.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Manager / Operator ────────────────────────────────────────────────────────
