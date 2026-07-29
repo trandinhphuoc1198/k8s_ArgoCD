@@ -39,7 +39,7 @@ metadata:
     service.cilium.io/global: "true"
     service.cilium.io/shared: "true"
 spec:
-  clusterIP: None
+  type: ClusterIP
   selector:
     # Matches the labels the OTel Operator sets on every pod it generates
     # for this CR — same selector convention already used by
