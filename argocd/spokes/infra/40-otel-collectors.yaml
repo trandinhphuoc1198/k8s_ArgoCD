@@ -1,6 +1,12 @@
 # Wave 40 — custom local chart (platform/charts/otel). Depends on the OTel
 # Operator CRDs (30-opentelemetry-operator.yaml, wave "30"):
 # OpenTelemetryCollector + Instrumentation.
+#
+# UPDATED as of the hub/spoke observability re-split: now applies the
+# spoke overlay (platform/values/spoke/otel.yaml) — DaemonSet only, no
+# local aggregator, forwards to hub over Cluster Mesh. valueFiles path is
+# relative from the chart directory (platform/charts/otel) to
+# platform/values/spoke/otel.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -27,6 +33,8 @@ spec:
         path: platform/charts/otel
         helm:
           releaseName: otel
+          valueFiles:
+            - ../../values/spoke/otel.yaml
       destination:
         server: '{{server}}'
         namespace: observability

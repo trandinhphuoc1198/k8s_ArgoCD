@@ -4,6 +4,12 @@
 # controller used to front every hostname. Every app's HTTPRoute attaches
 # to this Gateway by name/namespace + sectionName (the listener it wants).
 #
+# grafana/prometheus/alertmanager-https listeners REMOVED as of the
+# hub/spoke observability re-split — those UIs now run only on hub
+# (platform/gateway-api/hub-gateway.yaml). Their old HTTPRoutes under
+# platform/gateway-routes/spoke/ should be deleted from the repo; the
+# replacements live under platform/gateway-routes/hub/.
+#
 # Deployed by argocd/spokes/infra/10-gateway.yaml (replaces the old
 # argocd/spokes/infra/10-ingress-nginx.yaml at the same sync-wave).
 #
@@ -74,45 +80,6 @@ spec:
         certificateRefs:
           - kind: Secret
             name: fastapi-app-tls
-      allowedRoutes:
-        namespaces:
-          from: All
-
-    - name: grafana-https
-      hostname: grafana.phuoctd6.shop
-      port: 443
-      protocol: HTTPS
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: grafana-tls
-      allowedRoutes:
-        namespaces:
-          from: All
-
-    - name: prometheus-https
-      hostname: prometheus.phuoctd6.shop
-      port: 443
-      protocol: HTTPS
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: prometheus-tls
-      allowedRoutes:
-        namespaces:
-          from: All
-
-    - name: alertmanager-https
-      hostname: alertmanager.phuoctd6.shop
-      port: 443
-      protocol: HTTPS
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: alertmanager-tls
       allowedRoutes:
         namespaces:
           from: All

@@ -13,9 +13,25 @@ global:
   monitoringNamespace: monitoring
 
 # ---------------------------------------------------------------------------
+# Cross-cluster (Cilium Cluster Mesh) — see templates/global-service.yaml
+#
+# Default false so `helm template` with no overrides (CI's rendering step)
+# stays a no-op change. Both platform/values/hub/otel.yaml and
+# platform/values/spoke/otel.yaml set this to true — hub gets real
+# endpoints, spoke gets an endpoint-less Service that Cilium fills in with
+# hub's pods.
+# ---------------------------------------------------------------------------
+globalService:
+  enabled: false
+
+# ---------------------------------------------------------------------------
 # Collector — Node-level DaemonSet
 # Receives OTLP telemetry from pods on the node AND tails container log files
 # from /var/log/pods, parses JSON, extracts trace_id/span_id for correlation.
+#
+# Runs on EVERY cluster with instrumented application pods (i.e. spokes).
+# Disabled on hub (platform/values/hub/otel.yaml) — hub has no app pods to
+# instrument.
 # ---------------------------------------------------------------------------
 collectorDaemonSet:
   enabled: true
@@ -47,8 +63,13 @@ collectorDaemonSet:
 
 # ---------------------------------------------------------------------------
 # Collector — Aggregator Deployment
-# Central fan-in: receives from all DaemonSet nodes, applies tail-sampling,
-# then exports to backends.
+# Central fan-in: receives from all DaemonSet nodes (now across every
+# meshed cluster, not just the local one), applies tail-sampling, then
+# exports to backends.
+#
+# Runs ONLY on hub now (platform/values/hub/otel.yaml). Disabled on spoke
+# (platform/values/spoke/otel.yaml) — spoke DaemonSets forward to hub's
+# aggregator over Cluster Mesh instead of running their own.
 # ---------------------------------------------------------------------------
 collectorDeployment:
   enabled: true
@@ -71,6 +92,9 @@ collectorDeployment:
   #   Spans must arrive at the aggregator before its 10s decision window closes.
   #   The aggregator batch runs AFTER tail_sampling so its timeout has no
   #   effect on sampling decisions at all.
+  #
+  # Now that the DaemonSet→Aggregator hop can cross a Cluster Mesh link,
+  # keep an eye on this margin — cross-cluster latency eats into it.
   # ---------------------------------------------------------------------------
   tailSampling:
     decisionWait: 10s

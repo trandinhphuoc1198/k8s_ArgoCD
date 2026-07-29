@@ -1,16 +1,20 @@
 # platform/gateway-api/hub-gateway.yaml
 #
-# Hub counterpart of spoke-gateway.yaml — fronts ArgoCD's own UI and the
-# hub's Hubble UI. Deployed by argocd/hub/02-gateway.yaml (replaces the old
-# argocd/hub/02-ingress-nginx.yaml at the same sync-wave).
+# Hub counterpart of spoke-gateway.yaml — fronts ArgoCD's own UI, the hub's
+# Hubble UI, and (as of the hub/spoke observability re-split) Grafana,
+# Prometheus, and Alertmanager, all of which now run only on hub. Deployed
+# by argocd/hub/30-gateway.yaml.
+#
+# grafana/prometheus/alertmanager-https listeners MOVED here from
+# spoke-gateway.yaml — same hostnames as before, since there is still
+# exactly one of each in the fleet, just relocated.
 #
 # See spoke-gateway.yaml for the full Path-B rationale (AWS CCM provisions
-# a real NLB per Gateway; retire the old manual ALB) — same applies here,
-# fronting argocd.phuoctd6.shop + hubble-hub.phuoctd6.shop on one NLB.
+# a real NLB per Gateway; retire the old manual ALB) — same applies here.
 # After first sync:
 #   kubectl get svc -n gateway-system cilium-gateway-hub-gateway \
 #     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-# and point both hostnames' Route53 records at that NLB DNS name.
+# and point every hostname's Route53 record at that NLB DNS name.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -55,6 +59,46 @@ spec:
         certificateRefs:
           - kind: Secret
             name: hubble-hub-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # ── Moved from spoke-gateway.yaml ──────────────────────────────────────
+    - name: grafana-https
+      hostname: grafana.phuoctd6.shop
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: grafana-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: prometheus-https
+      hostname: prometheus.phuoctd6.shop
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: prometheus-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: alertmanager-https
+      hostname: alertmanager.phuoctd6.shop
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: alertmanager-tls
       allowedRoutes:
         namespaces:
           from: All

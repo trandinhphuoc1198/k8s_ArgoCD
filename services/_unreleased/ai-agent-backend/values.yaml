@@ -154,14 +154,14 @@ serviceMonitor:
 # When enabled: true, the pod gets a single annotation that tells the OTel
 # Operator webhook to inject the Python SDK init-container at admission time.
 # The operator then sets ALL OTEL_* env vars automatically from the
-# Instrumentation CR defined in charts/otel — nothing else is needed here.
+# Instrumentation CR defined in charts/otel - nothing else is needed here.
 #
 # Prerequisites:
 #   - OTel Operator installed  (k8s/helm/otel-operator-values.yaml)
 #   - OTel chart deployed      (charts/otel/, namespace: observability)
 # ─────────────────────────────────────────────────────────────────────────────
 opentelemetry:
-  # Master switch — set false to disable injection with no other changes needed.
+  # Master switch - set false to disable injection with no other changes needed.
   enabled: true
 
   # Namespace where the Instrumentation CR lives.

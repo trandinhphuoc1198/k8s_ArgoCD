@@ -15,7 +15,7 @@ spec:
   isCA: true
   commonName: internal-cluster-ca
   secretName: internal-ca-secret
-  duration: 87600h0m0s      # 10 years — rotating a root is disruptive, so make it long-lived
+  duration: 87600h0m0s      # 10 years - rotating a root is disruptive, so make it long-lived
   privateKey:
     algorithm: ECDSA
     size: 256

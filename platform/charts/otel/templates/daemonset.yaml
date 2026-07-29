@@ -9,6 +9,15 @@
 # The traceID-based load balancing is REQUIRED when the aggregator runs as a
 # multi-replica Deployment with tail_sampling: all spans of a trace must land
 # on the same aggregator replica so the sampler can evaluate the full trace.
+#
+# CROSS-CLUSTER (hub/spoke split): the aggregator no longer runs on this
+# cluster when collectorDeployment.enabled is false (spoke tier). The
+# loadbalancing exporters below resolve "<agg>-collector-mesh" — a
+# hand-written Service (templates/global-service.yaml) marked global+shared
+# for Cilium Cluster Mesh — instead of the Operator's own
+# "<agg>-collector-headless" Service, because only the mesh Service can be
+# annotated for cross-cluster visibility. See global-service.yaml's header
+# comment for the full explanation.
 # ─────────────────────────────────────────────────────────────────────────────
 {{- if .Values.collectorDaemonSet.enabled }}
 apiVersion: opentelemetry.io/v1beta1
@@ -306,6 +315,9 @@ spec:
 
     exporters:
       # ── Traces — routed by traceID so tail_sampling sees complete traces ───
+      # Resolver hostname points at the Cluster-Mesh-visible "-mesh" Service
+      # (templates/global-service.yaml), NOT the Operator's own "-headless"
+      # Service — see that file's header comment for why.
       loadbalancing/traces:
         routing_key: traceID
         protocol:
@@ -328,7 +340,7 @@ spec:
               max_elapsed_time: 300s
         resolver:
           dns:
-            hostname: "{{ include "otel.collectorAgg.serviceName" . }}-headless.{{ .Values.global.namespace }}.svc.cluster.local"
+            hostname: "{{ include "otel.collectorAgg.serviceName" . }}-mesh.{{ .Values.global.namespace }}.svc.cluster.local"
             port: "4317"
 
       # ── Metrics & Logs — routed by service name (no traceID on these) ─────
@@ -354,7 +366,7 @@ spec:
               max_elapsed_time: 300s
         resolver:
           dns:
-            hostname: "{{ include "otel.collectorAgg.serviceName" . }}-headless.{{ .Values.global.namespace }}.svc.cluster.local"
+            hostname: "{{ include "otel.collectorAgg.serviceName" . }}-mesh.{{ .Values.global.namespace }}.svc.cluster.local"
             port: "4317"
 
       {{- if .Values.backends.debug.enabled }}

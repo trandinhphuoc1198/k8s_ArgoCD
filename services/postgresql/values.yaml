@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# PostgreSQL Chart — values.yaml
+# PostgreSQL Chart - values.yaml
 # Deployed via CloudNativePG operator
 # Namespace: db
 # ──────────────────────────────────────────────
@@ -54,13 +54,13 @@ cluster:
 # ──────────────────────────────────────────────
 # PgBouncer Poolers
 #
-# poolMode: transaction  — best for FastAPI async (asyncpg / SQLAlchemy async)
+# poolMode: transaction  - best for FastAPI async (asyncpg / SQLAlchemy async)
 #
 # RW pooler → primary   (WRITE_DB_URL)
 # RO pooler → replicas  (READ_DB_URL)  ← load-balanced across all replicas
 # ──────────────────────────────────────────────
 pooler:
-  # Shared setting — both poolers use transaction mode
+  # Shared setting - both poolers use transaction mode
   poolMode: transaction
 
   rw:
@@ -83,7 +83,7 @@ pooler:
     ssl: disable
     name: pg-pooler-ro
     instances: 2            # 2 PgBouncer pods for HA on the read path
-    maxClientConn: 400      # reads are higher volume — allow more clients
+    maxClientConn: 400      # reads are higher volume - allow more clients
     defaultPoolSize: 30     # more server-side connections for read fan-out
     resources:
       requests:
@@ -98,7 +98,7 @@ pooler:
 # ──────────────────────────────────────────────
 secret:
   name: pg-app-secret
-  # Base64-encoded. Override at deploy time — never commit plain-text passwords.
+  # Base64-encoded. Override at deploy time - never commit plain-text passwords.
   # Generate: echo -n 'yourpassword' | base64
   username: YXBwdXNlcg==   # appuser
   password: Y2hhbmdlbWU=   # changeme  ← CHANGE THIS

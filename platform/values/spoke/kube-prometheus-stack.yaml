@@ -1,39 +1,38 @@
-grafana:
-  adminPassword: kagura12
-  deploymentStrategy:
-    type: Recreate
-
-  # env:
-  #   GF_SERVER_ROOT_URL: http://aa-123124710.ap-northeast-1.elb.amazonaws.com/grafana/
-  #   GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-
-  persistence:
-    enabled: true
-    accessModes:
-      - ReadWriteOnce
-    size: 1Gi
-    storageClassName: ebs-csi
-
-  service:
-    type: ClusterIP
-
-  # Ingress replaced by platform/gateway-routes/spoke/grafana-httproute.yaml
-  # (Gateway API, via the shared spoke-gateway). Left explicitly disabled
-  # here so a future `helm upgrade` can't silently re-enable ingress-nginx
-  # routing alongside it.
-  ingress:
-    enabled: false
-
-  resources:
-    requests:
-      cpu: 300m
-      memory: 500Mi
-    limits:
-      cpu: 600m
-      memory: 700Mi
+# platform/values/spoke/kube-prometheus-stack.yaml
+#
+# REWRITTEN for the hub/spoke observability re-split: this Prometheus now
+# runs in AGENT MODE. It still uses the Prometheus Operator + ServiceMonitor/
+# PodMonitor CRDs to discover scrape targets on this spoke (KEDA's triggers,
+# every chart's own ServiceMonitor, cilium-servicemonitors, etc. are
+# UNCHANGED and keep working) — it just has no local TSDB/query API and no
+# local Grafana/Alertmanager. Every sample is remote_written to the hub's
+# central Prometheus over the Cluster Mesh global "monitoring-hub-prometheus"
+# Service (platform/values/hub/kube-prometheus-stack.yaml).
+#
+# IMPORTANT: with prometheus.agentMode: true, this Prometheus has NO query
+# API — nothing on this spoke (KEDA, Grafana, dashboards) can query it.
+# KEDA's ScaledObjects (services/fastapi-app, services/_unreleased/ai-agent-backend)
+# now point their prometheus trigger's serverAddress at the hub Prometheus
+# instead. That is a real new runtime dependency: spoke autoscaling now
+# needs hub to be reachable over Cluster Mesh. See the values files for
+# those charts.
 
 prometheus:
+  # Chart-level switch that puts the generated Prometheus CR into
+  # `spec.mode: Agent` and adjusts a few agent-incompatible defaults
+  # (alerting/rules evaluation, remote-read) automatically.
+  agentMode: true
+
   prometheusSpec:
+    remoteWrite:
+      - url: "http://monitoring-hub-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+        # Reasonable defaults for a cross-cluster (mesh) push — tune once
+        # you've measured actual sample volume from this spoke.
+        queueConfig:
+          maxSamplesPerSend: 1000
+          capacity: 5000
+          maxShards: 10
+
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
@@ -41,10 +40,12 @@ prometheus:
         labelSelector:
           matchLabels:
             app.kubernetes.io/name: prometheus
-    retention: 2d
+
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
 
+    # Agent mode still needs a small WAL volume for the remote_write queue —
+    # not a full TSDB, so this can stay small.
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -58,19 +59,21 @@ prometheus:
     resources:
       requests:
         cpu: 100m
-        memory: 512Mi
+        memory: 256Mi
       limits:
         cpu: 300m
-        memory: 800Mi
+        memory: 400Mi
 
-  # Ingress replaced by platform/gateway-routes/spoke/prometheus-httproute.yaml
+  # No spoke-local query API, so nothing should route to it externally.
   ingress:
     enabled: false
+
+# ── Grafana / Alertmanager moved to hub — disable both here ────────────────
+grafana:
+  enabled: false
 
 alertmanager:
-  # Ingress replaced by platform/gateway-routes/spoke/alertmanager-httproute.yaml
-  ingress:
-    enabled: false
+  enabled: false
 
 kube-state-metrics:
   resources:

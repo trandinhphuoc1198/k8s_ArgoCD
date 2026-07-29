@@ -1,0 +1,55 @@
+# Wave 40 — NEW as of the hub/spoke observability re-split. This is now the
+# fleet's single central Prometheus/Grafana/Alertmanager. Needs the
+# 'ebs-csi' StorageClass (20-aws-ebs-csi-driver.yaml, wave "20").
+#
+# fullnameOverride is DELIBERATELY "monitoring-hub", not "monitoring" —
+# see platform/values/hub/kube-prometheus-stack.yaml's header comment for
+# why (avoids a Cilium-global naming collision with every spoke's own
+# local Prometheus Agent, which is named "monitoring-prometheus").
+#
+# remote_write receiver is enabled here so every spoke's Prometheus Agent
+# (argocd/spokes/infra/30-kube-prometheus-stack.yaml) can push samples in
+# over the Cluster Mesh global "monitoring-hub-prometheus" Service.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-hub
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: "86.3.2"   # keep in sync with the spoke Application
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/platform/values/hub/kube-prometheus-stack.yaml
+        valuesObject:
+          fullnameOverride: monitoring-hub
+          grafana:
+            persistence:
+              storageClassName: ebs-csi
+          prometheus:
+            prometheusSpec:
+              storageSpec:
+                volumeClaimTemplate:
+                  spec:
+                    storageClassName: ebs-csi
+    - repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

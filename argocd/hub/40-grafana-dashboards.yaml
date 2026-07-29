@@ -1,0 +1,32 @@
+# Wave 40 — MOVED FROM argocd/spokes/infra/40-grafana-dashboards.yaml.
+# Plain ConfigMaps (not a Helm chart) — picked up by the Grafana sidecar
+# that now runs on hub via kube-prometheus-stack (same wave "40").
+# Dashboard JSON content under platform/grafana-dashboards/ is UNCHANGED —
+# only the destination cluster moved.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana-dashboards
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-hub
+  source:
+    repoURL: https://github.com/trandinhphuoc1198/k8s_ArgoCD.git
+    targetRevision: main
+    path: platform/grafana-dashboards
+    directory:
+      recurse: false
+      exclude: "*.md"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

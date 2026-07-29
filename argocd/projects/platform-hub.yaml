@@ -8,7 +8,8 @@ spec:
     The hub cluster's own management plane: ArgoCD's Helm release, External
     Secrets Operator, the ClusterSecretStore, the per-spoke ExternalSecrets
     that register spoke clusters, the node-level infra (Cilium, AWS CCM,
-    cluster-autoscaler)
+    cluster-autoscaler), AND - as of the hub/spoke observability re-split -
+    the fleet-wide observability backend
   sourceRepos:
     - "https://argoproj.github.io/argo-helm"
     - "https://charts.external-secrets.io"
@@ -17,6 +18,11 @@ spec:
     - "https://helm.cilium.io/"
     - "https://kubernetes.github.io/cloud-provider-aws"
     - "https://kubernetes.github.io/autoscaler"
+    - "https://kubernetes-sigs.github.io/aws-ebs-csi-driver"
+    - "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    - "https://prometheus-community.github.io/helm-charts"
+    - "https://grafana.github.io/helm-charts"
+    - "https://grafana-community.github.io/helm-charts"
     - "https://github.com/trandinhphuoc1198/k8s_ArgoCD.git"
 
   destinations:
@@ -32,6 +38,10 @@ spec:
       namespace: kube-system
     - server: https://kubernetes.default.svc
       namespace: cilium-secrets
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: observability
 
   clusterResourceWhitelist:
     - group: "*"
