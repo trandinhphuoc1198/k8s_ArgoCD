@@ -1,4 +1,4 @@
-# Wave 25 — spoke counterpart of argocd/hub/25-clustermesh-ca.yaml. Pulls
+# Wave 30 — spoke counterpart of argocd/hub/30-clustermesh-ca.yaml. Pulls
 # the CA the hub generated + pushed (platform/clustermesh/hub/) via ESO,
 # rather than generating its own — see platform/clustermesh/spoke/
 # external-secret.yaml. Needs cert-manager's CRDs/webhook

@@ -1,4 +1,4 @@
-# Wave 25 — hub generates the shared Cluster Mesh mTLS root locally via
+# Wave 30 — hub generates the shared Cluster Mesh mTLS root locally via
 # cert-manager (platform/clustermesh/hub/ca-certificate.yaml) and pushes
 # it to AWS Secrets Manager (hub/ca-pushsecret.yaml) for every spoke to
 # pull. Needs cert-manager's CRDs/webhook (20-cert-manager.yaml) and
@@ -22,7 +22,7 @@
 # Multi-source: "common" is the tier-agnostic ClusterIssuer + SecretStore
 # (also used by every spoke); "hub" is the generate-and-push half that
 # only the hub runs. Spokes combine "common" with "spoke" instead — see
-# argocd/spokes/infra/25-clustermesh-ca.yaml.
+# argocd/spokes/infra/30-clustermesh-ca.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
