@@ -32,7 +32,7 @@ spec:
       prune: true
       selfHeal: false
     retry:
-      limit: 5
+      limit: 10
       backoff:
         duration: 10s
         factor: 2

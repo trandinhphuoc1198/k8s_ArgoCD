@@ -10,13 +10,6 @@ metadata:
     service.cilium.io/global: "true"
     service.cilium.io/shared: "true"
 spec:
-  # NOT headless. DNS for a headless Service is answered from local
-  # EndpointSlices, which Cilium Cluster Mesh never populates — it injects
-  # remote backends straight into the eBPF service map instead. A normal
-  # ClusterIP resolves fine locally (to this spoke's own, unused IP) and
-  # traffic sent to it is load-balanced across the merged local+remote
-  # backends by Cilium's datapath — same mechanism that already proved
-  # working via the direct pod-IP curl test.
   type: ClusterIP
   # No selector — no real local backend. Cilium mesh injects hub's pod as
   # a backend for this frontend once the mesh-shared match succeeds.
