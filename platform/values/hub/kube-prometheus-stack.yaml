@@ -34,9 +34,6 @@ grafana:
   service:
     type: ClusterIP
 
-  # Routed by platform/gateway-routes/hub/grafana-httproute.yaml via the
-  # shared hub Gateway. Left explicitly disabled so a future `helm upgrade`
-  # can't silently re-enable ingress-nginx-style routing alongside it.
   ingress:
     enabled: false
 

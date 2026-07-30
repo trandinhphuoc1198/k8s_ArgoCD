@@ -10,9 +10,6 @@
 # platform/gateway-routes/spoke/ should be deleted from the repo; the
 # replacements live under platform/gateway-routes/hub/.
 #
-# Deployed by argocd/spokes/infra/10-gateway.yaml (replaces the old
-# argocd/spokes/infra/10-ingress-nginx.yaml at the same sync-wave).
-#
 # NOTE — Service exposure (Path B, chosen over keeping the old manual ALB):
 # Cilium auto-creates a Service named "cilium-gateway-spoke-gateway"
 # (type: LoadBalancer, the Gateway API default) in this namespace.
@@ -61,9 +58,6 @@ spec:
       service.beta.kubernetes.io/aws-load-balancer-internal: "false"
       service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
   listeners:
-    # Plain HTTP catch-all — paired with the redirect-to-https HTTPRoute in
-    # platform/gateway-routes/spoke/http-redirect.yaml (replaces
-    # ingress-nginx's ssl-redirect annotation).
     - name: http
       port: 80
       protocol: HTTP

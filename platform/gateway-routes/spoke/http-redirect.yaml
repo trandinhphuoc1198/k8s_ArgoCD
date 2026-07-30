@@ -1,7 +1,3 @@
-# Catch-all HTTP -> HTTPS redirect, replacing ingress-nginx's
-# nginx.ingress.kubernetes.io/ssl-redirect: "true" annotation. Attaches to
-# the plain "http" listener on spoke-gateway; matches every hostname since
-# it has no `hostnames:` restriction.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

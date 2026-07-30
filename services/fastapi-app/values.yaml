@@ -15,10 +15,6 @@ service:
   port: 80
   targetPort: 8000
 
-# Replaces the old `ingress:` block (ingress-nginx). Routes through the
-# shared spoke Gateway (platform/gateway-api/spoke-gateway.yaml) instead of
-# an app-owned Ingress. TLS/hostname/cert now live on that Gateway's
-# "fastapi-https" listener — this HTTPRoute just has to name it.
 httpRoute:
   enabled: true
   hostname: "fastapi.phuoctd6.shop"

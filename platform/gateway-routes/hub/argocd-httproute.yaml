@@ -3,8 +3,7 @@
 # set) now that this HTTPRoute owns routing.
 #
 # server.insecure: true in platform/values/hub/argocd.yaml means ArgoCD
-# serves plain HTTP internally — same assumption ingress-nginx made
-# (backend-protocol: HTTP), so this backendRef targets the plain http port.
+# serves plain HTTP internally
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

@@ -4,8 +4,6 @@
 # and Cilium's Gateway API controller + the CRDs themselves
 # (10-cilium.yaml wave "10", 00-gateway-api-crds.yaml wave "00").
 #
-# Replaces the old ingress-nginx Application at this same position in the
-# dependency chain.
 #
 # include: only picks up hub-gateway.yaml from the shared
 # platform/gateway-api/ directory — spoke-gateway.yaml is applied

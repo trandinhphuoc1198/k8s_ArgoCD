@@ -63,10 +63,6 @@ enableIPv4Masquerade: true
 enableIPv6Masquerade: false
 
 # ── Gateway API ────────────────────────────────────────────────────────────
-# Replaces ingress-nginx cluster-wide (see platform/gateway-api/ and
-# platform/gateway-routes/). Implemented by Cilium's embedded Envoy
-# (L7 proxy), so l7Proxy must stay true.
-#
 # Requires the Gateway API CRDs to already exist when the Cilium agent
 # starts — installed one sync-wave earlier by
 # argocd/{hub,spokes/infra}/00-gateway-api-crds.yaml (wave "-1" vs Cilium's
@@ -182,11 +178,6 @@ hubble:
   ui:
     enabled: true
     rollOutPods: true
-    # No more ingress-nginx Ingress — Hubble UI is now exposed via a
-    # Gateway API HTTPRoute (platform/gateway-routes/hub/hubble-httproute.yaml,
-    # platform/gateway-routes/spoke/hubble-httproute.yaml) pointing at the
-    # hubble-ui Service this chart still creates. Hostnames/TLS now live on
-    # the shared Gateway listeners (platform/gateway-api/), not here.
     ingress:
       enabled: false
     resources:

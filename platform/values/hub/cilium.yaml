@@ -26,7 +26,3 @@ cluster:
   name: hub
   id: 1
 
-# Hubble UI's hostname now lives on the hub Gateway
-# (platform/gateway-api/hub-gateway.yaml, listener "hubble-https",
-# hostname hubble-hub.phuoctd6.shop) instead of here — base/cilium.yaml
-# turns hubble.ui.ingress off entirely now that ingress-nginx is gone.

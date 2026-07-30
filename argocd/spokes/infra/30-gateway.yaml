@@ -6,9 +6,6 @@
 # need kube-prometheus-stack — co-located in this wave purely because both
 # only depend on wave "20" being done.
 #
-# Replaces the old ingress-nginx ApplicationSet at this same position in
-# the dependency chain.
-#
 # include: only picks up spoke-gateway.yaml from the shared
 # platform/gateway-api/ directory — hub-gateway.yaml is applied separately
 # by argocd/hub/30-gateway.yaml.

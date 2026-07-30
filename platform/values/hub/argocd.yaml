@@ -47,10 +47,6 @@ configs:
     server.insecure: true
 
 server:
-  # Routing replaced by platform/gateway-routes/hub/argocd-httproute.yaml
-  # (Gateway API, via the shared hub-gateway). Left explicitly disabled so
-  # a future `helm upgrade` can't silently re-enable ingress-nginx routing
-  # alongside it.
   ingress:
     enabled: false
 
